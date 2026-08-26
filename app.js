@@ -1,7 +1,8 @@
 (() => {
   "use strict";
 
-  const API_ENDPOINT = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed";
+  const API_ENDPOINT = "https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed";
+  const ANON_COOLDOWN_MS = 10 * 60 * 1000;
   const CACHE_TTL = 24 * 60 * 60 * 1000;
   const MAX_CARDS = 5;
   const MAX_HISTORY = 100;
@@ -10,7 +11,8 @@
     cards: "urlbattler.cards.v1",
     history: "urlbattler.history.v1",
     cache: "urlbattler.cache.v1",
-    rush: "urlbattler.rush.v1"
+    rush: "urlbattler.rush.v1",
+    apiCooldown: "urlbattler.api.cooldown.v1"
   };
 
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -152,6 +154,58 @@
 
   function cacheKey(url, strategy) { return `${strategy}|${url}`; }
 
+
+  function configuredApiKey() {
+    return String(
+      sessionStorage.getItem("urlbattler.psi.key") ||
+      window.URL_BATTLER_CONFIG?.pageSpeedApiKey ||
+      ""
+    ).trim();
+  }
+
+  function apiKeySource() {
+    if (sessionStorage.getItem("urlbattler.psi.key")) return "SESSION";
+    if (window.URL_BATTLER_CONFIG?.pageSpeedApiKey) return "CONFIG";
+    return "ANONYMOUS";
+  }
+
+  function getApiCooldown() {
+    const value = Number(localStorage.getItem(LS.apiCooldown) || 0);
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function setApiCooldown(until) {
+    if (until > now()) localStorage.setItem(LS.apiCooldown, String(until));
+    else localStorage.removeItem(LS.apiCooldown);
+  }
+
+  function updateApiKeyUi() {
+    const source = apiKeySource();
+    const notice = $("#apiKeyNotice");
+    const status = $("#apiKeyStatus");
+    if (!notice || !status) return;
+
+    if (source === "SESSION") {
+      status.textContent = "設定済み（このタブ）";
+      notice.classList.add("configured");
+      $("#createApiPill").textContent = "FREE API KEY";
+    } else if (source === "CONFIG") {
+      status.textContent = "設定済み（公開版）";
+      notice.classList.add("configured");
+      $("#createApiPill").textContent = "FREE API KEY";
+    } else {
+      status.textContent = "未設定（匿名モード）";
+      notice.classList.remove("configured");
+      $("#createApiPill").textContent = "ANONYMOUS API";
+    }
+  }
+
+  function revealApiKeySettings() {
+    const d = $("#apiKeyDetails");
+    if (d) d.open = true;
+    $("#apiKeyInput")?.focus();
+  }
+
   async function getPageSpeedCard(rawUrl, strategy = "desktop", force = false) {
     const url = normalizeUrl(rawUrl);
     const key = cacheKey(url, strategy);
@@ -159,6 +213,18 @@
     if (!force && cache[key] && now() - cache[key].cachedAt < CACHE_TTL) {
       setApiState("CACHE");
       return { ...cache[key].card, source: "cache" };
+    }
+
+    const apiKey = configuredApiKey();
+    const cooldownUntil = getApiCooldown();
+    if (!apiKey && cooldownUntil > now()) {
+      setApiState("KEY NEEDED");
+      revealApiKeySettings();
+      const mins = Math.max(1, Math.ceil((cooldownUntil - now()) / 60000));
+      throw new AppError(
+        "ANON_COOLDOWN",
+        `匿名PageSpeed APIが429を返したため、無駄な再試行を止めています（約${mins}分）。無料APIキーを設定すればすぐ再試行できます。`
+      );
     }
 
     setApiState("CALLING");
@@ -170,7 +236,6 @@
     params.set("locale", "ja");
     params.append("category", "performance");
     params.append("category", "best-practices");
-    const apiKey = sessionStorage.getItem("urlbattler.psi.key");
     if (apiKey) params.set("key", apiKey);
 
     let response, data;
@@ -185,7 +250,13 @@
       showProgress(false);
     }
 
-    if (!response.ok) throw parseGoogleApiError(response.status, data);
+    if (!response.ok) {
+      const retryAfter = response.headers.get("retry-after");
+      throw parseGoogleApiError(response.status, data, {
+        retryAfter,
+        usedApiKey: Boolean(apiKey)
+      });
+    }
 
     const runtimeError = data?.lighthouseResult?.runtimeError;
     if (runtimeError?.code || runtimeError?.message) {
@@ -202,18 +273,32 @@
     return card;
   }
 
-  function parseGoogleApiError(status, data) {
+  function parseGoogleApiError(status, data, context = {}) {
     const e = data?.error || {};
     const message = String(e.message || data?.message || "PageSpeed APIエラー");
     const reasons = (e.errors || []).map(x => `${x.reason || ""} ${x.message || ""}`).join(" ");
     const combined = `${message} ${reasons}`.toLowerCase();
 
     if (status === 429 || ((status === 403 || status === 400) && /(quota|rate|limit|resource_exhausted|daily)/.test(combined))) {
+      const retrySeconds = Number.parseInt(context.retryAfter || "", 10);
+      if (!context.usedApiKey) {
+        const cooldown = Number.isFinite(retrySeconds) ? Math.max(60, retrySeconds) * 1000 : ANON_COOLDOWN_MS;
+        setApiCooldown(now() + cooldown);
+        setApiState("KEY NEEDED");
+        setTimeout(revealApiKeySettings, 0);
+        return new AppError(
+          "QUOTA_ANON",
+          "匿名PageSpeed APIが429（Too Many Requests）を返しました。匿名枠は安定運用に向かないため、無料APIキーを設定してください。キー設定後はすぐ再試行できます。",
+          { status, message, retryAfter: context.retryAfter }
+        );
+      }
+
+      const retryText = Number.isFinite(retrySeconds) ? ` Google指定の再試行目安は約${retrySeconds}秒です。` : "";
       setApiState("LIMIT");
       return new AppError(
-        "QUOTA",
-        "PageSpeed APIの利用制限に達した可能性があります。新しいカードの計測は一時停止します。保存済みカード・URL RUSH・戦歴はそのまま遊べます。",
-        { status, message }
+        "QUOTA_KEY",
+        `設定中のPageSpeed APIキーの利用制限に達した可能性があります。${retryText}保存済みカード・URL RUSH・戦歴はそのまま遊べます。`,
+        { status, message, retryAfter: context.retryAfter }
       );
     }
     if (status === 400) {
@@ -985,14 +1070,29 @@
     $("#battleDialogClose").onclick = () => $("#battleDialog").close();
     $("#externalCancel").onclick = () => { pendingExternalUrl = null; $("#externalDialog").close(); };
     $("#externalOpen").onclick = actuallyOpenExternal;
+    $("#openApiKeySettings").onclick = revealApiKeySettings;
     $("#saveApiKeyButton").onclick = () => {
       const key = $("#apiKeyInput").value.trim();
-      if (key) sessionStorage.setItem("urlbattler.psi.key", key);
-      else sessionStorage.removeItem("urlbattler.psi.key");
-      showAlert(key ? "APIキーをこのタブのsessionStorageに保存しました。" : "APIキーを解除しました。", "success");
+      if (key) {
+        sessionStorage.setItem("urlbattler.psi.key", key);
+        setApiCooldown(0);
+        setApiState("READY");
+        showAlert("APIキーをこのタブに設定しました。匿名429のクールダウンも解除しました。", "success");
+      } else {
+        sessionStorage.removeItem("urlbattler.psi.key");
+        showAlert("APIキー入力が空です。匿名モードのままです。", "error");
+      }
+      updateApiKeyUi();
+    };
+    $("#clearApiKeyButton").onclick = () => {
+      sessionStorage.removeItem("urlbattler.psi.key");
+      $("#apiKeyInput").value = "";
+      updateApiKeyUi();
+      showAlert("このタブのAPIキーを解除しました。", "success");
     };
     const storedKey = sessionStorage.getItem("urlbattler.psi.key");
     if (storedKey) $("#apiKeyInput").value = storedKey;
+    updateApiKeyUi();
     renderAll();
   }
 

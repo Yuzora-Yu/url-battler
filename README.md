@@ -1,4 +1,4 @@
-# URL BATTLER ZERO — PageSpeed API直呼び MVP
+# URL BATTLER ZERO v0.2 — PageSpeed API直呼び MVP
 
 任意の公開WebページURLをGoogle PageSpeed Insights APIで測定し、Lighthouseの結果からカードを生成して戦う静的Webアプリです。
 
@@ -30,11 +30,27 @@ python -m http.server 8000
 
 そのままGitHub Pages / Cloudflare Pages / Netlify / Vercelなどの静的ホスティングにも置けます。
 
-## APIキー
+## APIキー（v0.2で重要）
 
-Google公式ドキュメント上、PageSpeed Insights APIはAPIキーなしでも利用できますが、頻繁・自動的な問い合わせではAPIキーが推奨されています。
+Google公式ドキュメント上、PageSpeed Insights APIはAPIキーなしでも呼べますが、匿名リクエストは最初の1回でもHTTP 429になることがあります。
+そのため v0.2 では「無料APIキー利用」を推奨ルートに変更しました。
 
-このMVPはデフォルトでキーなしです。画面の「高度な設定」から任意のAPIキーを入力できます。入力したキーは `sessionStorage` のみに保存され、タブを閉じると消えます。
+### ローカル試験
+画面の「APIキー設定」に自分のキーを入力してください。`sessionStorage` のみに保存されます。
+
+### 公開版
+`config.js` の `pageSpeedApiKey` に公開用キーを設定できます。
+Google Cloud側で必ず以下を制限してください。
+
+- API restrictions: PageSpeed Insights API のみ
+- Application restrictions: HTTP referrers（公開ドメイン）
+
+ブラウザに埋め込むAPIキーは利用者から見えるため、「秘密鍵」としては扱えません。制限設定が前提です。
+
+### 429対策
+匿名429を受けた場合、アプリは10分程度のローカルクールダウンを設定して無駄な再試行を止めます。
+APIキーを入力するとクールダウンは即解除されます。
+APIキー利用中の429では保存済みカードとURL RUSHは引き続き利用できます。
 
 ## 重要な設計
 

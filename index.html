@@ -41,7 +41,7 @@
                 <p class="eyebrow">CAPTURE A WEB PAGE</p>
                 <h2>URLからカードを生成</h2>
               </div>
-              <span class="pill">API CALL × 1</span>
+              <span class="pill" id="createApiPill">API CALL × 1</span>
             </div>
 
             <label class="field-label" for="createUrl">公開WebページURL</label>
@@ -69,15 +69,28 @@
               </label>
             </div>
 
-            <details class="advanced">
-              <summary>高度な設定：自分のPageSpeed APIキーを使う</summary>
+            <div id="apiKeyNotice" class="api-key-notice">
+              <div>
+                <strong>PageSpeed APIキー：<span id="apiKeyStatus">未設定（匿名モード）</span></strong>
+                <p>匿名リクエストは1回目でも429になることがあります。0円運用は可能ですが、安定利用には無料APIキー推奨です。</p>
+              </div>
+              <button id="openApiKeySettings" class="secondary">APIキー設定</button>
+            </div>
+
+            <details class="advanced" id="apiKeyDetails">
+              <summary>PageSpeed APIキー設定（無料・推奨）</summary>
               <p class="hint">
-                キーなしでも利用できます。頻繁な利用で制限に達した場合だけ任意で入力してください。
-                キーはこのタブのsessionStorageだけに保存します。
+                Google公式も頻繁・自動利用ではAPIキーを推奨しています。
+                ここで入力したキーはこのタブのsessionStorageだけに保存します。
+                公開版では config.js にドメイン制限済みキーを設定できます。
               </p>
               <div class="url-row">
-                <input id="apiKeyInput" class="url-input" type="password" autocomplete="off" placeholder="API key（任意）" />
+                <input id="apiKeyInput" class="url-input" type="password" autocomplete="off" placeholder="PageSpeed API key" />
                 <button id="saveApiKeyButton" class="secondary">このタブに保存</button>
+              </div>
+              <div class="api-key-links">
+                <a href="https://developers.google.com/speed/docs/insights/v5/get-started?hl=ja" target="_blank" rel="noopener noreferrer">Google公式：APIキーの取得方法</a>
+                <button id="clearApiKeyButton" class="secondary">このタブのキーを解除</button>
               </div>
             </details>
 
@@ -237,6 +250,7 @@
     </footer>
   </div>
 
+  <script src="./config.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

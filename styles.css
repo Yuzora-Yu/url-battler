@@ -172,3 +172,18 @@ footer { color: var(--muted); font-size: 10px; line-height: 1.65; padding: 0 4px
   .top-stats { width: 100%; }
   .mini-stat { flex: 1; }
 }
+
+.api-key-notice {
+  margin-top: 18px; padding: 13px 14px; border: 1px solid rgba(255,209,102,.28);
+  background: rgba(255,209,102,.055); border-radius: 14px;
+  display: flex; justify-content: space-between; gap: 14px; align-items: center;
+}
+.api-key-notice strong { font-size: 12px; color: var(--warning); }
+.api-key-notice p { margin: 4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
+.api-key-notice.configured { border-color: rgba(112,240,160,.28); background: rgba(112,240,160,.05); }
+.api-key-notice.configured strong { color: var(--success); }
+.api-key-links { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.api-key-links a { color: var(--accent2); font-size: 11px; }
+@media (max-width: 520px) {
+  .api-key-notice { align-items: stretch; flex-direction: column; }
+}
