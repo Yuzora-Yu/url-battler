@@ -1,18 +1,19 @@
 (() => {
   "use strict";
 
-  const API_ENDPOINT = "https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed";
-  const ANON_COOLDOWN_MS = 10 * 60 * 1000;
+  const SCAN_ENDPOINT = String(window.URL_BATTLER_CONFIG?.scanEndpoint || "").trim();
+  const PUBLIC_APP_URL = String(window.URL_BATTLER_CONFIG?.publicAppUrl || location.origin).trim();
   const CACHE_TTL = 24 * 60 * 60 * 1000;
+  const DAILY_ENERGY_MAX = 5;
   const MAX_CARDS = 5;
   const MAX_HISTORY = 100;
 
   const LS = {
-    cards: "urlbattler.cards.v1",
-    history: "urlbattler.history.v1",
-    cache: "urlbattler.cache.v1",
-    rush: "urlbattler.rush.v1",
-    apiCooldown: "urlbattler.api.cooldown.v1"
+    cards: "urlbattler.cards.v2",
+    history: "urlbattler.history.v2",
+    cache: "urlbattler.cache.v2",
+    rush: "urlbattler.rush.v2",
+    energy: "urlbattler.energy.v1"
   };
 
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -72,7 +73,7 @@
   function npc(name, url, s, skills, className) {
     return {
       id: `npc-${name}`,
-      url, finalUrl: url, domain: name, path: "/",
+      url, finalUrl: url, domain: name, siteName: name, path: "/",
       capturedAt: 0, strategy: "desktop", className,
       stats: { hp: s[0], atk: s[1], def: s[2], spd: s[3], tec: s[4] },
       bp: Math.round(s.reduce((a,b)=>a+b,0)/5),
@@ -155,221 +156,158 @@
   function cacheKey(url, strategy) { return `${strategy}|${url}`; }
 
 
-  function configuredApiKey() {
-    return String(
-      sessionStorage.getItem("urlbattler.psi.key") ||
-      window.URL_BATTLER_CONFIG?.pageSpeedApiKey ||
-      ""
-    ).trim();
+  function localDateKey() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,"0");
+    const day = String(d.getDate()).padStart(2,"0");
+    return `${y}-${m}-${day}`;
   }
 
-  function apiKeySource() {
-    if (sessionStorage.getItem("urlbattler.psi.key")) return "SESSION";
-    if (window.URL_BATTLER_CONFIG?.pageSpeedApiKey) return "CONFIG";
-    return "ANONYMOUS";
-  }
-
-  function getApiCooldown() {
-    const value = Number(localStorage.getItem(LS.apiCooldown) || 0);
-    return Number.isFinite(value) ? value : 0;
-  }
-
-  function setApiCooldown(until) {
-    if (until > now()) localStorage.setItem(LS.apiCooldown, String(until));
-    else localStorage.removeItem(LS.apiCooldown);
-  }
-
-  function updateApiKeyUi() {
-    const source = apiKeySource();
-    const notice = $("#apiKeyNotice");
-    const status = $("#apiKeyStatus");
-    if (!notice || !status) return;
-
-    if (source === "SESSION") {
-      status.textContent = "設定済み（このタブ）";
-      notice.classList.add("configured");
-      $("#createApiPill").textContent = "FREE API KEY";
-    } else if (source === "CONFIG") {
-      status.textContent = "設定済み（公開版）";
-      notice.classList.add("configured");
-      $("#createApiPill").textContent = "FREE API KEY";
-    } else {
-      status.textContent = "未設定（匿名モード）";
-      notice.classList.remove("configured");
-      $("#createApiPill").textContent = "ANONYMOUS API";
+  function getEnergyState() {
+    const today = localDateKey();
+    let state = loadJson(LS.energy, null);
+    if (!state || state.date !== today) {
+      state = { date: today, remaining: DAILY_ENERGY_MAX, rewardUsed: false };
+      saveJson(LS.energy, state);
     }
+    state.remaining = clamp(Number(state.remaining ?? DAILY_ENERGY_MAX), 0, DAILY_ENERGY_MAX);
+    return state;
   }
 
-  function revealApiKeySettings() {
-    const d = $("#apiKeyDetails");
-    if (d) d.open = true;
-    $("#apiKeyInput")?.focus();
+  function consumeEnergy(amount = 1) {
+    const state = getEnergyState();
+    if (state.remaining < amount) return false;
+    state.remaining -= amount;
+    saveJson(LS.energy, state);
+    renderEnergy();
+    return true;
+  }
+
+  function renderEnergy() {
+    const state = getEnergyState();
+    $("#headerEnergy").textContent = `${state.remaining} / ${DAILY_ENERGY_MAX}`;
+    $("#energyRemaining").textContent = state.remaining;
+    $("#energyResetText").textContent = `毎日0:00に全回復`;
+    const orbs = $("#energyOrbs");
+    if (orbs) {
+      orbs.innerHTML = Array.from({length:DAILY_ENERGY_MAX}, (_,i) =>
+        `<span class="energy-orb ${i < state.remaining ? "on" : ""}"></span>`
+      ).join("");
+    }
   }
 
   async function getPageSpeedCard(rawUrl, strategy = "desktop", force = false) {
     const url = normalizeUrl(rawUrl);
     const key = cacheKey(url, strategy);
     const cache = getCache();
+
     if (!force && cache[key] && now() - cache[key].cachedAt < CACHE_TTL) {
-      setApiState("CACHE");
-      return { ...cache[key].card, source: "cache" };
+      setApiState("LOCAL HIT");
+      return { ...cache[key].card, source: "local-cache", discoveryStatus: "LOCAL" };
     }
 
-    const apiKey = configuredApiKey();
-    const cooldownUntil = getApiCooldown();
-    if (!apiKey && cooldownUntil > now()) {
-      setApiState("KEY NEEDED");
-      revealApiKeySettings();
-      const mins = Math.max(1, Math.ceil((cooldownUntil - now()) / 60000));
+    if (!SCAN_ENDPOINT) {
+      setApiState("OFFLINE");
       throw new AppError(
-        "ANON_COOLDOWN",
-        `匿名PageSpeed APIが429を返したため、無駄な再試行を止めています（約${mins}分）。無料APIキーを設定すればすぐ再試行できます。`
+        "SCANNER_OFFLINE",
+        "スキャナーURLが未設定です。config.js の scanEndpoint にCloudflare Workerの /scan URLを設定してください。"
       );
     }
 
-    setApiState("CALLING");
-    showProgress(true, "PageSpeed計測中...", "対象ページをLighthouseで解析しています。通常数秒〜数十秒かかります。");
+    const energy = getEnergyState();
+    if (force && energy.remaining <= 0) {
+      throw new AppError("ENERGY_EMPTY", "再計測にはSCAN ENERGYが1必要です。発見済みURLの通常召喚はENERGY 0でも試せます。");
+    }
 
-    const params = new URLSearchParams();
-    params.set("url", url);
-    params.set("strategy", strategy);
-    params.set("locale", "ja");
-    params.append("category", "performance");
-    params.append("category", "best-practices");
-    if (apiKey) params.set("key", apiKey);
+    setApiState("SCANNING");
+    showProgress(true, "サイト召喚中...", energy.remaining > 0
+      ? "発見済みならENERGY 0、未発見なら成功時にENERGYを1消費します。"
+      : "ENERGY 0のため、発見済み共有キャッシュだけを探します。");
 
-    let response, data;
+    let response, payload;
     try {
-      response = await fetch(`${API_ENDPOINT}?${params.toString()}`, { method: "GET", mode: "cors", cache: "no-store" });
+      response = await fetch(SCAN_ENDPOINT, {
+        method: "POST",
+        mode: "cors",
+        cache: "no-store",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          url,
+          strategy,
+          force: Boolean(force),
+          allowFresh: force ? true : energy.remaining > 0
+        })
+      });
       const text = await response.text();
-      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      try { payload = JSON.parse(text); } catch { payload = { message: text }; }
     } catch (err) {
       setApiState("NETWORK");
-      throw new AppError("NETWORK", "PageSpeed APIへ接続できませんでした。ネットワーク接続やブラウザ設定を確認してください。", err);
+      throw new AppError("NETWORK", "URL BATTLERスキャナーへ接続できませんでした。保存済みカードやURL RUSHは遊べます。", err);
     } finally {
       showProgress(false);
     }
 
     if (!response.ok) {
-      const retryAfter = response.headers.get("retry-after");
-      throw parseGoogleApiError(response.status, data, {
-        retryAfter,
-        usedApiKey: Boolean(apiKey)
-      });
+      throw parseScannerError(response.status, payload);
+    }
+    if (!payload?.ok || !payload?.scan) {
+      throw new AppError("SCAN_FAILED", "スキャナーから有効な計測結果を取得できませんでした。");
     }
 
-    const runtimeError = data?.lighthouseResult?.runtimeError;
-    if (runtimeError?.code || runtimeError?.message) {
-      throw new AppError("SCAN_FAILED", `Lighthouseがこのページを測定できませんでした：${runtimeError.message || runtimeError.code}`);
-    }
-    if (!data?.lighthouseResult?.audits) {
-      throw new AppError("SCAN_FAILED", "PageSpeedから有効なLighthouse結果を取得できませんでした。");
+    const cacheStatus = String(payload.cacheStatus || "MISS").toUpperCase();
+    if (cacheStatus !== "HIT") {
+      if (!consumeEnergy(1)) {
+        throw new AppError("ENERGY_RACE", "SCAN ENERGYの状態が変わったためカード生成を中止しました。");
+      }
     }
 
-    const card = buildCard(url, strategy, data);
+    const card = buildCard(url, strategy, payload);
+    card.source = cacheStatus === "HIT" ? "shared-cache" : "new-scan";
+    card.discoveryStatus = cacheStatus === "HIT" ? "DISCOVERED" : "NEW";
     cache[key] = { cachedAt: now(), card };
     setCache(cache);
-    setApiState("READY");
+    setApiState(cacheStatus === "HIT" ? "CACHE HIT" : "NEW SCAN");
     return card;
   }
 
-  function parseGoogleApiError(status, data, context = {}) {
-    const e = data?.error || {};
-    const message = String(e.message || data?.message || "PageSpeed APIエラー");
-    const reasons = (e.errors || []).map(x => `${x.reason || ""} ${x.message || ""}`).join(" ");
-    const combined = `${message} ${reasons}`.toLowerCase();
+  function parseScannerError(status, payload = {}) {
+    const code = String(payload.code || "");
+    const message = String(payload.message || "");
 
-    if (status === 429 || ((status === 403 || status === 400) && /(quota|rate|limit|resource_exhausted|daily)/.test(combined))) {
-      const retrySeconds = Number.parseInt(context.retryAfter || "", 10);
-      if (!context.usedApiKey) {
-        const cooldown = Number.isFinite(retrySeconds) ? Math.max(60, retrySeconds) * 1000 : ANON_COOLDOWN_MS;
-        setApiCooldown(now() + cooldown);
-        setApiState("KEY NEEDED");
-        setTimeout(revealApiKeySettings, 0);
-        return new AppError(
-          "QUOTA_ANON",
-          "匿名PageSpeed APIが429（Too Many Requests）を返しました。匿名枠は安定運用に向かないため、無料APIキーを設定してください。キー設定後はすぐ再試行できます。",
-          { status, message, retryAfter: context.retryAfter }
-        );
-      }
-
-      const retryText = Number.isFinite(retrySeconds) ? ` Google指定の再試行目安は約${retrySeconds}秒です。` : "";
-      setApiState("LIMIT");
+    if (status === 409 && code === "CACHE_MISS") {
+      setApiState("ENERGY 0");
       return new AppError(
-        "QUOTA_KEY",
-        `設定中のPageSpeed APIキーの利用制限に達した可能性があります。${retryText}保存済みカード・URL RUSH・戦歴はそのまま遊べます。`,
-        { status, message, retryAfter: context.retryAfter }
+        "ENERGY_EMPTY",
+        "このURLはまだ共有キャッシュにありません。今日のSCAN ENERGYを使い切っています。保存済みカード・URL RUSHはそのまま遊べます。"
       );
     }
-    if (status === 400) {
-      setApiState("ERROR");
-      return new AppError("BAD_REQUEST", `PageSpeedがURLを受け付けませんでした：${message}`);
+    if (status === 429 || code === "SCANNER_LIMIT" || code === "UPSTREAM_LIMIT") {
+      setApiState("CHARGING");
+      return new AppError(
+        "SCANNER_LIMIT",
+        "スキャナーが混み合っているため、新しいURLの計測を現在受け付けられません。発見済みカード・保存カード・URL RUSHは遊べます。"
+      );
     }
     if (status === 403) {
       setApiState("DENIED");
-      return new AppError("DENIED", `PageSpeed APIがリクエストを拒否しました：${message}`);
+      return new AppError("DENIED", "このゲームからスキャナーを利用できません。公開設定を確認してください。");
+    }
+    if (status === 400 || status === 422) {
+      setApiState("INVALID");
+      return new AppError("SCAN_REJECTED", message || "このURLは計測できませんでした。");
     }
     if (status >= 500) {
       setApiState("BUSY");
-      return new AppError("SERVICE", "PageSpeed API側が一時的に利用できません。保存済みカードやURL RUSHは引き続き遊べます。");
+      return new AppError("SERVICE", "スキャナーまたはPageSpeed側が一時的に利用できません。ローカル対戦は遊べます。");
     }
     setApiState("ERROR");
-    return new AppError("API", `PageSpeed APIエラー (${status})：${message}`);
+    return new AppError("API", message || `スキャナーエラー (${status})`);
   }
 
-  function buildCard(requestedUrl, strategy, data) {
-    const lhr = data.lighthouseResult;
-    const audits = lhr.audits || {};
-    const categories = lhr.categories || {};
-    const finalUrl = lhr.finalDisplayedUrl || lhr.finalUrl || requestedUrl;
-
-    const network = audits["network-requests"]?.details?.items || [];
-    const net = summarizeNetwork(network, finalUrl);
-
-    const perf = score100(categories.performance?.score);
-    const best = score100(categories["best-practices"]?.score);
-
-    const fcp = numAudit(audits, "first-contentful-paint");
-    const lcp = numAudit(audits, "largest-contentful-paint");
-    const tbt = numAudit(audits, "total-blocking-time");
-    const si = numAudit(audits, "speed-index");
-    const cls = numAudit(audits, "cumulative-layout-shift");
-    const totalBytes = numAudit(audits, "total-byte-weight") || net.totalBytes;
-
-    const domNodes = extractDomNodes(audits);
-    const isHttps = finalUrl.startsWith("https://") ? 1 : 0;
-    const httpsAudit = auditScore(audits, "is-on-https");
-    const hsts = firstAuditScore(audits, ["has-hsts"]);
-    const csp = firstAuditScore(audits, ["csp-xss", "csp"]);
-    const noVuln = firstAuditScore(audits, ["no-vulnerable-libraries"]);
-    const mixed = firstAuditScore(audits, ["is-on-https"]);
-
-    const metrics = {
-      perf, best, fcp, lcp, tbt, si, cls,
-      totalBytes,
-      requestCount: network.length,
-      imageBytes: net.byType.Image?.bytes || 0,
-      imageCount: net.byType.Image?.count || 0,
-      scriptBytes: net.byType.Script?.bytes || 0,
-      scriptCount: net.byType.Script?.count || 0,
-      cssBytes: (net.byType.Stylesheet?.bytes || 0),
-      cssCount: net.byType.Stylesheet?.count || 0,
-      fontBytes: net.byType.Font?.bytes || 0,
-      documentBytes: net.byType.Document?.bytes || 0,
-      thirdPartyDomains: net.thirdPartyDomains,
-      resourceTypes: net.resourceTypes,
-      domNodes,
-      isHttps,
-      httpsAudit,
-      hsts,
-      csp,
-      noVuln,
-      mixed,
-      lighthouseVersion: lhr.lighthouseVersion || "?",
-      fetchTime: lhr.fetchTime || new Date().toISOString(),
-      runWarnings: lhr.runWarnings || []
-    };
-
+  function buildCard(requestedUrl, strategy, payload) {
+    const metrics = { ...(payload.scan || {}) };
+    const finalUrl = payload.finalUrl || metrics.finalUrl || requestedUrl;
     const stats = makeStats(metrics);
     const skills = chooseSkills(metrics, stats);
     const className = chooseClass(metrics, stats);
@@ -384,14 +322,15 @@
       finalUrl,
       domain,
       path,
-      capturedAt: now(),
+      siteName: domain,
+      capturedAt: payload.scannedAt || now(),
       strategy,
       className,
       stats,
       bp,
       skills,
       metrics,
-      source: "api"
+      source: "new-scan"
     };
   }
 
@@ -549,7 +488,8 @@
     const cards = getCards();
     const same = cards.findIndex(c => c.id === card.id || (c.url === card.url && c.strategy === card.strategy));
     if (same >= 0) {
-      cards[same] = { ...card, savedAt: now() };
+      const oldName = cards[same].siteName;
+      cards[same] = { ...card, siteName: oldName || card.siteName || card.domain, savedAt: now() };
       setCards(cards);
       showAlert("カードを更新しました。", "success");
       return true;
@@ -558,7 +498,7 @@
       showAlert("保存枠は5枚までです。マイカードから1枚削除してから保存してください。", "error");
       return false;
     }
-    cards.push({ ...card, savedAt: now() });
+    cards.push({ ...card, siteName: card.siteName || card.domain, savedAt: now() });
     setCards(cards);
     showAlert("カードをローカル保存しました。", "success");
     return true;
@@ -578,6 +518,33 @@
     return (h >>> 0).toString(36);
   }
 
+  function displayName(card) {
+    return String(card?.siteName || card?.domain || "UNKNOWN").trim() || "UNKNOWN";
+  }
+
+  let editingCardId = null;
+  function openCardNameEditor(card) {
+    editingCardId = card.id;
+    $("#cardNameInput").value = displayName(card);
+    $("#cardNameDialog").showModal();
+    setTimeout(() => $("#cardNameInput").select(), 0);
+  }
+
+  function saveEditedCardName() {
+    const name = $("#cardNameInput").value.trim().slice(0,60);
+    if (!name || !editingCardId) return;
+    const cards = getCards();
+    const idx = cards.findIndex(c => c.id === editingCardId);
+    if (idx >= 0) {
+      cards[idx].siteName = name;
+      saveJson(LS.cards, cards);
+      renderAll();
+      showAlert("カード名を変更しました。共有画像にも反映されます。", "success");
+    }
+    editingCardId = null;
+    $("#cardNameDialog").close();
+  }
+
   function cardColors(card) {
     const h = parseInt(hashString(card.domain).slice(-4), 36) || 120;
     const hue = h % 360;
@@ -588,11 +555,16 @@
     const [a,b] = cardColors(card);
     const path = card.path || (() => { try { const u = new URL(card.url); return u.pathname + u.search; } catch { return "/"; } })();
     const date = card.capturedAt ? new Date(card.capturedAt).toLocaleString("ja-JP", {month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}) : "NPC";
-    const source = card.source === "cache" ? "LOCAL CACHE" : card.source === "npc" ? "NPC" : "PAGESPEED";
+    const source =
+      card.source === "local-cache" ? "LOCAL CACHE" :
+      card.source === "shared-cache" ? "DISCOVERED" :
+      card.source === "new-scan" ? "NEW DISCOVERY" :
+      card.source === "npc" ? "NPC" : "SCAN";
     return `
       <article class="site-card" style="--cardA:${a};--cardB:${b}">
         <div class="card-top">
           <div>
+            <div class="card-name">${esc(displayName(card))}</div>
             <div class="card-domain">${esc(card.domain)}</div>
             <div class="card-path">${esc(path)}</div>
           </div>
@@ -643,17 +615,29 @@
   function renderLatest(card) {
     const area = $("#latestCardArea");
     area.classList.remove("showcase");
+    const discovery =
+      card.discoveryStatus === "NEW"
+        ? `<div class="discovery-banner new">🆕 NEW DISCOVERY — SCAN ENERGY -1</div>`
+        : card.discoveryStatus === "DISCOVERED"
+          ? `<div class="discovery-banner">♻ DISCOVERED CARD — 共有キャッシュから召喚 / ENERGY 0</div>`
+          : `<div class="discovery-banner">💾 LOCAL CARD — ENERGY 0</div>`;
     area.innerHTML = `
       <div>
         ${cardHtml(card)}
+        ${discovery}
         ${metricsHtml(card)}
         <div class="card-actions">
           <button class="primary" id="saveLatestCard">5枚枠に保存</button>
+          <button class="secondary" id="shareLatestCard">SNS共有</button>
+          <button class="secondary" id="downloadLatestCard">カード画像</button>
           <button class="secondary" id="battleLatestNpc">NPCと戦う</button>
           <button class="secondary" id="openLatestSite">サイトを見る</button>
         </div>
+        <div class="share-note">SNS共有はカード画像＋短い投稿文をローカル生成します。対応端末では画像付きWeb Shareを使います。</div>
       </div>`;
     $("#saveLatestCard").onclick = () => saveCard(card);
+    $("#shareLatestCard").onclick = () => shareCard(card);
+    $("#downloadLatestCard").onclick = () => downloadCardImage(card);
     $("#battleLatestNpc").onclick = () => showBattle(card, randomNpc(), "NPC");
     $("#openLatestSite").onclick = () => requestExternalOpen(card.url);
   }
@@ -670,20 +654,27 @@
         <div class="card-wrap" data-card-id="${esc(c.id)}">
           ${cardHtml(c)}
           <div class="card-actions">
+            <button class="primary act-share">SNS共有</button>
+            <button class="secondary act-image">画像</button>
+            <button class="secondary act-name">名前</button>
             <button class="secondary act-battle">NPC戦</button>
             <button class="secondary act-open">サイト</button>
-            <button class="secondary act-rescan">再計測</button>
+            <button class="secondary act-rescan">再計測 ⚡1</button>
             <button class="danger ghost act-delete">削除</button>
           </div>
         </div>`).join("");
       $$(".card-wrap").forEach(el => {
         const card = cards.find(c => c.id === el.dataset.cardId);
+        $(".act-share", el).onclick = () => shareCard(card);
+        $(".act-image", el).onclick = () => downloadCardImage(card);
+        $(".act-name", el).onclick = () => openCardNameEditor(card);
         $(".act-battle", el).onclick = () => showBattle(card, randomNpc(), "NPC");
         $(".act-open", el).onclick = () => requestExternalOpen(card.url);
         $(".act-delete", el).onclick = () => removeCard(card.id);
         $(".act-rescan", el).onclick = async () => {
           try {
             const updated = await getPageSpeedCard(card.url, card.strategy, true);
+            updated.siteName = card.siteName || card.domain;
             saveCard(updated);
             renderLatest(updated);
             switchView("create");
@@ -820,7 +811,7 @@
     addHistory({
       id:r.id, playedAt:r.playedAt, seed:r.seed, turns:r.turns, mode,
       cardA:snapshot(a), cardB:snapshot(b), winnerId:r.winnerId,
-      winnerDomain:r.winner.domain, loserDomain:r.loser.domain
+      winnerDomain:displayName(r.winner), loserDomain:displayName(r.loser)
     });
 
     const html = battleResultHtml(r);
@@ -839,7 +830,7 @@
   }
 
   function snapshot(c) {
-    return { id:c.id, domain:c.domain, url:c.url, className:c.className, stats:c.stats, bp:c.bp, skills:c.skills };
+    return { id:c.id, domain:c.domain, siteName:c.siteName, url:c.url, className:c.className, stats:c.stats, bp:c.bp, skills:c.skills };
   }
 
   function battleResultHtml(r) {
@@ -853,7 +844,7 @@
         <div class="result-banner">
           <div>
             <p>WINNER / ${r.turns} TURN</p>
-            <h3>${esc(r.winner.domain)}</h3>
+            <h3>${esc(displayName(r.winner))}</h3>
           </div>
           <div class="result-actions">
             <button class="primary result-download">結果画像</button>
@@ -891,6 +882,125 @@
     $("#rushStreak").textContent = state.streak;
   }
 
+  function compactUrlForImage(url, max = 86) {
+    const s = String(url || "");
+    return s.length <= max ? s : `${s.slice(0, max - 1)}…`;
+  }
+
+  function xWeightedEstimate(text) {
+    const urls = String(text).match(/https?:\/\/\S+/g) || [];
+    let rest = String(text).replace(/https?:\/\/\S+/g, "");
+    let weight = urls.length * 23;
+    for (const ch of [...rest.normalize("NFC")]) {
+      weight += ch.codePointAt(0) <= 0x10FF ? 1 : 2;
+    }
+    return weight;
+  }
+
+  function makeCardShareText(card) {
+    const statLine = `BP ${card.bp}｜HP ${card.stats.hp} ATK ${card.stats.atk} DEF ${card.stats.def} SPD ${card.stats.spd} TEC ${card.stats.tec}`;
+    let name = displayName(card).slice(0, 42);
+    let text = `強URL発見⚡ ${name}\n${statLine}\n${card.url}\n#URLBATTLER\n${PUBLIC_APP_URL}`;
+    while (xWeightedEstimate(text) > 270 && name.length > 8) {
+      name = `${name.slice(0,-2)}…`;
+      text = `強URL発見⚡ ${name}\n${statLine}\n${card.url}\n#URLBATTLER\n${PUBLIC_APP_URL}`;
+    }
+    return text;
+  }
+
+  async function downloadCardImage(card) {
+    const blob = await makeCardImage(card);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `url-battler-card-${hashString(card.url)}.png`;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  }
+
+  async function shareCard(card) {
+    const text = makeCardShareText(card);
+    const blob = await makeCardImage(card);
+    const file = new File([blob], `url-battler-card-${hashString(card.url)}.png`, {type:"image/png"});
+    try {
+      if (navigator.share && navigator.canShare?.({files:[file]})) {
+        await navigator.share({ title:`URL BATTLER - ${displayName(card)}`, text, files:[file] });
+        return;
+      }
+      if (navigator.share) {
+        await navigator.share({ title:`URL BATTLER - ${displayName(card)}`, text });
+        return;
+      }
+      await navigator.clipboard.writeText(text);
+      await downloadCardImage(card);
+      showAlert(`SNS投稿文をコピーし、カード画像を保存しました。X換算の推定文字数：約${xWeightedEstimate(text)} / 280`, "success");
+    } catch(e) {
+      if (e?.name !== "AbortError") {
+        try {
+          await navigator.clipboard.writeText(text);
+          showAlert("共有を開始できなかったため、投稿文をクリップボードへコピーしました。", "error");
+        } catch {
+          showAlert("共有を開始できませんでした。カード画像を保存して手動で投稿してください。", "error");
+        }
+      }
+    }
+  }
+
+  function makeCardImage(card) {
+    return new Promise(resolve => {
+      const c = document.createElement("canvas");
+      c.width = 1200; c.height = 630;
+      const x = c.getContext("2d");
+      const [a,b] = cardColors(card);
+
+      x.fillStyle = "#090b10"; x.fillRect(0,0,c.width,c.height);
+      const grad = x.createRadialGradient(1060, 30, 20, 930, 80, 520);
+      grad.addColorStop(0, b);
+      grad.addColorStop(1, "#090b10");
+      x.globalAlpha = .24; x.fillStyle = grad; x.fillRect(0,0,c.width,c.height); x.globalAlpha = 1;
+
+      x.fillStyle = "#b9ff38"; x.fillRect(0,0,16,c.height);
+      x.fillStyle = "#72e8ff"; x.font = "700 23px sans-serif"; x.fillText("URL BATTLER / FOUND CARD", 70, 68);
+
+      x.fillStyle = "#ffffff"; x.font = "900 56px sans-serif";
+      fitText(x, displayName(card), 70, 145, 1030);
+
+      x.fillStyle = "#9aa5b5"; x.font = "600 22px sans-serif";
+      x.fillText(compactUrlForImage(card.url), 70, 190);
+
+      x.fillStyle = "#b9ff38"; x.font = "900 76px sans-serif";
+      x.fillText(String(card.bp), 70, 302);
+      x.fillStyle = "#9aa5b5"; x.font = "700 18px sans-serif"; x.fillText("BATTLE POWER", 74, 330);
+
+      const labels = ["HP","ATK","DEF","SPD","TEC"];
+      const vals = [card.stats.hp,card.stats.atk,card.stats.def,card.stats.spd,card.stats.tec];
+      labels.forEach((lab,i)=>{
+        const px = 335 + i*165;
+        x.fillStyle = "#171c26"; roundRect(x,px,238,145,96,14); x.fill();
+        x.fillStyle = "#9aa5b5"; x.font = "700 16px sans-serif"; x.fillText(lab,px+15,268);
+        x.fillStyle = "#ffffff"; x.font = "900 39px sans-serif"; x.fillText(String(vals[i]),px+15,312);
+      });
+
+      x.fillStyle = "#ffffff"; x.font = "800 20px sans-serif";
+      x.fillText(`CLASS  ${card.className}`, 70, 402);
+
+      const skills = (card.skills || []).map(s=>s.name).slice(0,3);
+      x.fillStyle = "#9aa5b5"; x.font = "600 20px sans-serif";
+      x.fillText(`SKILLS  ${skills.length ? skills.join(" / ") : "ノーマル"}`, 70, 447);
+
+      x.fillStyle = "#72e8ff"; x.font = "800 22px sans-serif";
+      x.fillText("#URLBATTLER", 70, 538);
+      x.fillStyle = "#9aa5b5"; x.font = "600 17px sans-serif";
+      x.fillText(compactUrlForImage(PUBLIC_APP_URL, 90), 70, 575);
+
+      x.fillStyle = "#ffffff"; x.font = "700 17px sans-serif";
+      x.textAlign = "right";
+      x.fillText(`${card.domain} / ${String(card.strategy || "desktop").toUpperCase()}`, 1130, 575);
+      x.textAlign = "left";
+
+      c.toBlob(blob => resolve(blob), "image/png");
+    });
+  }
+
   async function downloadResultImage(r) {
     const blob = await makeResultImage(r);
     const a = document.createElement("a");
@@ -901,7 +1011,7 @@
   }
 
   async function shareResult(r) {
-    const text = `URL BATTLER：${r.winner.domain} WIN！ ${r.turns}ターン決着 / BP ${r.winner.bp}`;
+    const text = `URL BATTLER：${displayName(r.winner)} WIN！ ${r.turns}ターン決着 / BP ${r.winner.bp} #URLBATTLER ${PUBLIC_APP_URL}`;
     const blob = await makeResultImage(r);
     const file = new File([blob], `url-battler-${r.id}.png`, {type:"image/png"});
     try {
@@ -981,6 +1091,7 @@
   function renderAll() {
     renderCards();
     renderHistory();
+    renderEnergy();
     $("#rushStreak").textContent = loadJson(LS.rush, {streak:0}).streak || 0;
   }
 
@@ -1037,7 +1148,13 @@
       $("#scanButton").disabled = true;
       const card = await getPageSpeedCard($("#createUrl").value, $("#strategySelect").value, $("#forceScan").checked);
       renderLatest(card);
-      showAlert(card.source === "cache" ? "24時間以内のローカルキャッシュからカードを生成しました（API使用なし）。" : "カードを生成しました。", "success");
+      if (card.discoveryStatus === "NEW") {
+        showAlert("NEW DISCOVERY！ 未発見URLを計測しました。SCAN ENERGY -1。", "success");
+      } else if (card.discoveryStatus === "DISCOVERED") {
+        showAlert("DISCOVERED CARD！ 誰かが発見済みの共有キャッシュからENERGY 0で召喚しました。", "success");
+      } else {
+        showAlert("ローカル保存済みの計測結果からENERGY 0で召喚しました。", "success");
+      }
     } catch(e) { handleAppError(e); }
     finally { $("#scanButton").disabled = false; showProgress(false); }
   }
@@ -1046,9 +1163,9 @@
     const button = $("#battleUrlButton");
     try {
       button.disabled = true;
-      showAlert("URL Aを準備しています。未キャッシュならPageSpeed APIを使用します。");
+      showAlert("URL Aを召喚しています。発見済みならENERGY 0です。");
       const a = await getPageSpeedCard($("#battleUrlA").value, $("#battleStrategy").value, false);
-      showAlert("URL Bを準備しています。未キャッシュならPageSpeed APIを使用します。");
+      showAlert("URL Bを召喚しています。発見済みならENERGY 0です。");
       const b = await getPageSpeedCard($("#battleUrlB").value, $("#battleStrategy").value, false);
       showBattle(a,b,"URL_VS_URL","arena");
     } catch(e) { handleAppError(e); }
@@ -1070,30 +1187,16 @@
     $("#battleDialogClose").onclick = () => $("#battleDialog").close();
     $("#externalCancel").onclick = () => { pendingExternalUrl = null; $("#externalDialog").close(); };
     $("#externalOpen").onclick = actuallyOpenExternal;
-    $("#openApiKeySettings").onclick = revealApiKeySettings;
-    $("#saveApiKeyButton").onclick = () => {
-      const key = $("#apiKeyInput").value.trim();
-      if (key) {
-        sessionStorage.setItem("urlbattler.psi.key", key);
-        setApiCooldown(0);
-        setApiState("READY");
-        showAlert("APIキーをこのタブに設定しました。匿名429のクールダウンも解除しました。", "success");
-      } else {
-        sessionStorage.removeItem("urlbattler.psi.key");
-        showAlert("APIキー入力が空です。匿名モードのままです。", "error");
-      }
-      updateApiKeyUi();
+    $("#cardNameCancel").onclick = () => {
+      editingCardId = null;
+      $("#cardNameDialog").close();
     };
-    $("#clearApiKeyButton").onclick = () => {
-      sessionStorage.removeItem("urlbattler.psi.key");
-      $("#apiKeyInput").value = "";
-      updateApiKeyUi();
-      showAlert("このタブのAPIキーを解除しました。", "success");
-    };
-    const storedKey = sessionStorage.getItem("urlbattler.psi.key");
-    if (storedKey) $("#apiKeyInput").value = storedKey;
-    updateApiKeyUi();
+    $("#cardNameSave").onclick = saveEditedCardName;
+    $("#cardNameInput").addEventListener("keydown", e => {
+      if (e.key === "Enter") saveEditedCardName();
+    });
     renderAll();
+    setInterval(renderEnergy, 60 * 1000);
   }
 
   init();

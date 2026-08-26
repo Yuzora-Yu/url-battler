@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark" />
-  <meta name="description" content="URLをPageSpeed Insightsでカード化して戦う、サーバーゼロ構成のブラウザゲームMVP。" />
+  <meta name="description" content="URLをPageSpeed Insightsでカード化して戦うブラウザゲーム。発見済みURLはSCAN ENERGY消費なし。" />
   <title>URL BATTLER ZERO</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
@@ -12,13 +12,14 @@
   <div class="app-shell">
     <header class="topbar">
       <div>
-        <p class="eyebrow">ZERO SERVER MVP</p>
+        <p class="eyebrow">LOW COST DISCOVERY MVP</p>
         <h1>URL <span>BATTLER</span></h1>
         <p class="tagline">そのページの重さ、速さ、コードが戦闘力になる。</p>
       </div>
       <div class="top-stats">
+        <div class="mini-stat energy-stat"><small>SCAN ENERGY</small><strong id="headerEnergy">5 / 5</strong></div>
         <div class="mini-stat"><small>MY CARDS</small><strong id="headerCardCount">0 / 5</strong></div>
-        <div class="mini-stat"><small>API</small><strong id="headerApiState">READY</strong></div>
+        <div class="mini-stat"><small>SCANNER</small><strong id="headerApiState">READY</strong></div>
       </div>
     </header>
 
@@ -41,7 +42,7 @@
                 <p class="eyebrow">CAPTURE A WEB PAGE</p>
                 <h2>URLからカードを生成</h2>
               </div>
-              <span class="pill" id="createApiPill">API CALL × 1</span>
+              <span class="pill" id="createApiPill">NEW -1 / HIT 0</span>
             </div>
 
             <label class="field-label" for="createUrl">公開WebページURL</label>
@@ -65,34 +66,26 @@
               </label>
               <label class="checkbox-line">
                 <input type="checkbox" id="forceScan" />
-                24時間キャッシュを無視して再計測
+                発見済みキャッシュを無視して再計測（ENERGY -1）
               </label>
             </div>
 
-            <div id="apiKeyNotice" class="api-key-notice">
+            <div class="energy-panel">
               <div>
-                <strong>PageSpeed APIキー：<span id="apiKeyStatus">未設定（匿名モード）</span></strong>
-                <p>匿名リクエストは1回目でも429になることがあります。0円運用は可能ですが、安定利用には無料APIキー推奨です。</p>
+                <p class="eyebrow">SCAN ENERGY</p>
+                <strong><span id="energyRemaining">5</span> / 5</strong>
+                <p id="energyResetText">毎日0:00に全回復</p>
               </div>
-              <button id="openApiKeySettings" class="secondary">APIキー設定</button>
+              <div class="energy-orbs" id="energyOrbs" aria-label="SCAN ENERGY"></div>
+              <div class="energy-rules">
+                <span>🆕 未発見URL <b>-1</b></span>
+                <span>♻ 発見済みURL <b>0</b></span>
+              </div>
             </div>
-
-            <details class="advanced" id="apiKeyDetails">
-              <summary>PageSpeed APIキー設定（無料・推奨）</summary>
-              <p class="hint">
-                Google公式も頻繁・自動利用ではAPIキーを推奨しています。
-                ここで入力したキーはこのタブのsessionStorageだけに保存します。
-                公開版では config.js にドメイン制限済みキーを設定できます。
-              </p>
-              <div class="url-row">
-                <input id="apiKeyInput" class="url-input" type="password" autocomplete="off" placeholder="PageSpeed API key" />
-                <button id="saveApiKeyButton" class="secondary">このタブに保存</button>
-              </div>
-              <div class="api-key-links">
-                <a href="https://developers.google.com/speed/docs/insights/v5/get-started?hl=ja" target="_blank" rel="noopener noreferrer">Google公式：APIキーの取得方法</a>
-                <button id="clearApiKeyButton" class="secondary">このタブのキーを解除</button>
-              </div>
-            </details>
+            <p class="hint">
+              誰かが24時間以内に同じURLを発見していれば共有キャッシュから召喚され、SCAN ENERGYを消費しません。
+              ENERGYが0でも発見済みURLならカード化できます。
+            </p>
 
             <div id="scanProgress" class="progress hidden">
               <div class="spinner"></div>
@@ -105,9 +98,9 @@
             <div class="safety-note">
               <strong>安全・プライバシー方針</strong>
               <p>
-                URL BATTLER自身は対象ページを取得しません。入力URLはPageSpeed Insights APIへ送られます。
+                URL BATTLERのWorkerは対象ページへ直接アクセスせず、Google PageSpeed Insightsへ計測を依頼します。
+                PageSpeed APIキーは運営側WorkerのSecretに保持し、ユーザーには要求しません。
                 localhost・プライベートIP・認証情報入りURL等は送信前に拒否します。
-                公開を意図したページのみ使用してください。
               </p>
             </div>
           </div>
@@ -144,7 +137,7 @@
             </div>
             <span class="pill" id="cardsCounter">0 / 5</span>
           </div>
-          <p class="hint">最大5枚。カード・戦績はこのブラウザだけに保存されます。</p>
+          <p class="hint">最大5枚。カード名を付けて育てる感覚で保存できます。カード画像とSNS共有文もローカル生成します。</p>
           <div id="cardsGrid" class="card-grid"></div>
         </div>
       </section>
@@ -156,9 +149,9 @@
               <p class="eyebrow">BATTLE LAB</p>
               <h2>指定URL同士を戦わせる</h2>
             </div>
-            <span class="pill">最大 API CALL × 2</span>
+            <span class="pill">NEWなら最大 ⚡-2</span>
           </div>
-          <p class="hint">24時間以内の同一URL・同一計測モードはローカルキャッシュを使い、APIを呼びません。</p>
+          <p class="hint">発見済みURLはENERGY 0。未発見URLだけ1件につきENERGYを1消費します。</p>
 
           <div class="versus-inputs">
             <div>
@@ -196,7 +189,7 @@
           </div>
           <p class="hint">
             保存カード1枚で、アプリ同梱のNPCサイトカードと連戦します。
-            PageSpeed APIが制限中でも遊べます。
+            SCAN ENERGY 0・スキャナー停止中でも遊べます。
           </p>
           <div class="rush-controls">
             <label>
@@ -229,6 +222,16 @@
       <div id="battleDialogContent"></div>
     </dialog>
 
+    <dialog id="cardNameDialog" class="external-dialog">
+      <h3>カード名を変更</h3>
+      <p class="muted">SNS共有画像にもこの名前を使います。</p>
+      <input id="cardNameInput" class="url-input" maxlength="60" placeholder="例：伝説のキャラ紹介ページ" />
+      <div class="dialog-actions">
+        <button id="cardNameCancel" class="secondary">キャンセル</button>
+        <button id="cardNameSave" class="primary">保存</button>
+      </div>
+    </dialog>
+
     <dialog id="externalDialog" class="external-dialog">
       <h3>外部サイトを開きます</h3>
       <code id="externalUrlText"></code>
@@ -244,7 +247,7 @@
 
     <footer>
       <p>
-        Prototype / PageSpeed Insights API + Lighthouse data. 計測値は推定値で変動します。
+        Prototype / Cloudflare Worker + PageSpeed Insights API + Lighthouse data. 計測値は推定値で変動します。
         DEFは脆弱性診断ではなく、公開されたBest Practices等をゲーム用に数値化したものです。
       </p>
     </footer>

@@ -1,0 +1,16 @@
+name = "url-battler-scan"
+main = "worker.js"
+compatibility_date = "2026-08-26"
+
+[vars]
+# 本番のURL BATTLERサイト。複数はカンマ区切り。
+ALLOWED_ORIGIN = "https://YOUR-DOMAIN.example"
+
+# KV namespace を作成し、そのIDを設定。
+[[kv_namespaces]]
+binding = "SCAN_CACHE"
+id = "YOUR_KV_NAMESPACE_ID"
+
+# PAGESPEED_API_KEY はここに書かないこと。
+# デプロイ後:
+# npx wrangler secret put PAGESPEED_API_KEY

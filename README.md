@@ -1,80 +1,142 @@
-# URL BATTLER ZERO v0.2 — PageSpeed API直呼び MVP
+# URL BATTLER v0.3
 
-任意の公開WebページURLをGoogle PageSpeed Insights APIで測定し、Lighthouseの結果からカードを生成して戦う静的Webアプリです。
+「未発見URLを探すこと自体がゲーム」になる低コストMVPです。
 
-## できること
+## v0.3の中心ルール
 
-- トップページ以外のURL（パス・クエリ付き）をそのままカード化
-- PageSpeed Insights APIをブラウザから直接呼び出し
-- HP / ATK / DEF / SPD / TEC と最大3スキルを自動生成
-- 最大5枚のマイカードをローカル保存
-- 同一URL・同一計測モードを24時間キャッシュ
-- URL vs URL
-- 保存カード vs 同梱NPCのURL RUSH（API利用0）
-- ローカル戦歴（最大100件）
-- バトル結果PNG生成
-- Web Share API対応
-- PageSpeedの429/403系quota/rate-limitエラーを専用表示
-- API制限中でも保存済みカード・NPC戦は遊べる
+- SCAN ENERGY: 1日5
+- 毎日ローカル時刻0:00に5まで全回復
+- 未発見URLの新規PageSpeed計測: ENERGY -1
+- 誰かが24時間以内に発見済みのURL: ENERGY 0
+- ローカルに24時間キャッシュ済み: ENERGY 0
+- 保存カード / NPC戦 / URL RUSH / 戦歴: ENERGY 0
+- 強制再計測: ENERGY -1
+- マイカード最大5枚
+- カード名を自由に変更
+- カード画像PNGをローカル生成
+- Web Share APIでSNS共有
+- 非対応環境は投稿文コピー + PNG保存
+- 投稿文にはサイト名 / URL / BP / 5能力 / #URLBATTLER / URL BATTLER本体URLを含む
 
-## 起動
+## 構成
 
-ローカルでは `file://` 直開きよりHTTPサーバーを推奨します。
+Browser
+  -> Cloudflare Worker
+      -> Workers KV（24時間の共有発見キャッシュ）
+      -> cache miss時だけ PageSpeed Insights API
+          -> 対象サイト
+
+Worker自身は対象サイトへ直接アクセスしません。
+
+PageSpeed APIキーはユーザーに要求せず、Cloudflare Worker Secretとして運営側が保持します。
+
+## 共有キャッシュ
+
+WorkerはPageSpeedの巨大JSONを保存せず、ゲームに必要な計測指標だけを小さいJSONへ圧縮してKVへ保存します。
+
+同一URL + 同一strategyが24時間以内にKVへ存在すれば `cacheStatus: HIT`。
+フロントはSCAN ENERGYを消費しません。
+
+KVに存在しなければ `cacheStatus: MISS`。
+PageSpeed計測が成功してからENERGYを1消費します。
+
+ENERGY 0のユーザーは `allowFresh:false` でWorkerへ問い合わせるため、発見済みURLだけ召喚できます。
+未発見ならPageSpeedを呼ばずに `409 CACHE_MISS` を返します。
+
+## セットアップ
+
+### 1. Cloudflare KVを作る
+
+Workers KV namespaceを1つ作成し、`worker/wrangler.toml.example` を `wrangler.toml` にコピーしてIDを設定します。
+
+### 2. PageSpeed Insights APIキーを用意
+
+運営者がGoogle CloudでPageSpeed Insights API用キーを作成します。
+
+### 3. APIキーをWorker Secretへ保存
 
 ```bash
-cd url-battler-zero
+cd worker
+npx wrangler secret put PAGESPEED_API_KEY
+```
+
+ソースやwrangler.tomlへキーを直接書かないでください。
+
+### 4. Workerをデプロイ
+
+```bash
+npx wrangler deploy
+```
+
+### 5. フロント設定
+
+`config.js`:
+
+```js
+window.URL_BATTLER_CONFIG = {
+  scanEndpoint: "https://YOUR-WORKER.workers.dev/scan",
+  publicAppUrl: "https://YOUR-URL-BATTLER.example/"
+};
+```
+
+### 6. 静的フロントを公開
+
+`index.html / styles.css / app.js / config.js` はCloudflare PagesやGitHub Pages等へ静的配置できます。
+
+## ローカルフロント起動
+
+```bash
 python -m http.server 8000
 ```
 
-ブラウザで `http://localhost:8000` を開きます。
+`http://localhost:8000`
 
-そのままGitHub Pages / Cloudflare Pages / Netlify / Vercelなどの静的ホスティングにも置けます。
+Worker側 `ALLOWED_ORIGIN` に localhost も許可したい場合はカンマ区切りにしてください。
 
-## APIキー（v0.2で重要）
+## SNS共有
 
-Google公式ドキュメント上、PageSpeed Insights APIはAPIキーなしでも呼べますが、匿名リクエストは最初の1回でもHTTP 429になることがあります。
-そのため v0.2 では「無料APIキー利用」を推奨ルートに変更しました。
+マイカードの「SNS共有」から1200x630のPNGを生成します。
 
-### ローカル試験
-画面の「APIキー設定」に自分のキーを入力してください。`sessionStorage` のみに保存されます。
+共有文の形式:
 
-### 公開版
-`config.js` の `pageSpeedApiKey` に公開用キーを設定できます。
-Google Cloud側で必ず以下を制限してください。
+```text
+強URL発見⚡ カード名
+BP 842｜HP ... ATK ... DEF ... SPD ... TEC ...
+https://target.example/character/hero
+#URLBATTLER
+https://url-battler.example/
+```
 
-- API restrictions: PageSpeed Insights API のみ
-- Application restrictions: HTTP referrers（公開ドメイン）
+Xの通常投稿を意識し、URLを23文字として数える簡易weighted-length推定で270以内を目標にカード名を自動短縮します。
 
-ブラウザに埋め込むAPIキーは利用者から見えるため、「秘密鍵」としては扱えません。制限設定が前提です。
+Web Share APIが画像共有に対応している端末では画像+本文を共有します。
+非対応時は本文をコピーしPNGを保存します。
 
-### 429対策
-匿名429を受けた場合、アプリは10分程度のローカルクールダウンを設定して無駄な再試行を止めます。
-APIキーを入力するとクールダウンは即解除されます。
-APIキー利用中の429では保存済みカードとURL RUSHは引き続き利用できます。
+## リワード広告の将来拡張
 
-## 重要な設計
+`energy` stateには `rewardUsed` を予約済みです。
 
-URL BATTLERのサーバーは存在せず、対象サイトを取得しません。
+将来は「広告クリック報酬」ではなく、正式なRewarded Adの完了イベントを受けて
+1日1回だけENERGYを5まで全回復する設計を想定します。
 
-Browser -> Google PageSpeed Insights API -> 対象ページ
+## 安全設計
 
-カード・キャッシュ・戦歴はブラウザのlocalStorageに保存されます。
-
-### URL制限
-
-以下はブラウザ側で拒否します。
+フロントとWorkerの両方で以下を拒否します。
 
 - http/https以外
-- username/passwordを含むURL
-- localhost / .local / .internal
-- private / loopback / link-local等のIPv4
-- 一部のローカルIPv6
+- 認証情報入りURL
+- localhost
+- .local / .internal
+- private / loopback / link-local系IP直指定
 
-トップページ限定にはせず、pathname/queryは保持します。fragment (`#...`) は測定リクエストから除外します。
+カードから元サイトを開くときは警告ダイアログを表示します。
+
+DEFは脆弱性診断ではありません。
+Lighthouseの公開Best Practices等をゲーム能力へ変換したものです。
 
 ## 注意
 
-- DEFは脆弱性診断ではありません。HTTPS、Lighthouse Best Practices、取得できた公開監査結果をゲーム用に数値化しています。
-- Lighthouseの監査項目は将来変更される可能性があります。本実装は `network-requests` からリソース情報を集計し、欠落監査はフォールバックするようにしています。
-- PageSpeed APIの利用規約・クォータ・仕様はGoogle側で変更される可能性があります。
-- 公開を意図したページのみ利用してください。
+- Workers KVはグローバルな共有キャッシュですが、更新反映は即時完全同期ではありません。
+- 24時間を超えたURLは再発見扱いになり、fresh scan成功時にENERGYを1消費します。
+- 「NEW DISCOVERY」はこのMVPでは永続的な世界初発見記録ではなく、24時間共有キャッシュ上の新規発見を意味します。
+- 本当の「世界初発見者」を残すなら、後で永続DBを追加します。
