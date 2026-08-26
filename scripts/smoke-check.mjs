@@ -1,7 +1,21 @@
 import { readFile } from "node:fs/promises";
+
 const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const app = await readFile(new URL("../app.js", import.meta.url), "utf8");
+const config = await readFile(new URL("../config.js", import.meta.url), "utf8");
+const worker = await readFile(new URL("../worker/worker.js", import.meta.url), "utf8");
+const rootWrangler = await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8");
+const legacyWrangler = await readFile(new URL("../worker/wrangler.toml", import.meta.url), "utf8");
+
 const requiredIds = ["createUrl","scanButton","energyRemaining","cardsGrid","battleArena","rushArena","battleDialog"];
 for (const id of requiredIds) if (!html.includes(`id="${id}"`)) throw new Error(`missing HTML id: ${id}`);
 for (const token of ["BALANCE_VERSION = 6","playBattleAnimation","#URLバトラー","softStat","monsterForCard","battle-effect-art"]) if (!app.includes(token)) throw new Error(`missing app token: ${token}`);
+
+if (!config.includes('"/games/url-battler/api/scan"')) throw new Error("production scan endpoint must be absolute");
+if (!worker.includes('service: "url-battler-scan"') || !worker.includes('request.method === "GET"')) throw new Error("scanner health GET is missing");
+if (!worker.includes('\"UPSTREAM_TIMEOUT\"')) throw new Error("scanner upstream timeout handling is missing");
+if (!rootWrangler.includes('"yu-zora.com/games/url-battler/*"')) throw new Error("production route subtree is missing");
+if (!rootWrangler.includes('"yu-zora.com/games/url-battler"')) throw new Error("production exact route is missing");
+if (/^name\s*=\s*["']url-battler-scan["']/m.test(legacyWrangler)) throw new Error("legacy worker config must not reuse production worker name");
+
 console.log("Smoke check OK");
