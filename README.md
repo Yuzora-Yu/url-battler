@@ -38,9 +38,11 @@ https://yu-zora.com/games/url-battler/
   │    └─ config.js
   │
   └─ Worker API
-       └─ /games/url-battler/api/scan
-            ├─ Workers KV（24時間共有発見キャッシュ）
-            └─ PageSpeed Insights API
+       ├─ /games/url-battler/api/scan
+       ├─ /games/url-battler/api/energy
+       ├─ Workers KV（24時間共有発見キャッシュ）
+       ├─ Durable Object（厳密な回数制御 / 探索エナジー）
+       └─ PageSpeed Insights API
 ```
 
 Worker自身は対象サイトへ直接アクセスしません。
@@ -101,6 +103,7 @@ npx.cmd wrangler deploy
 - Static Assets: `./dist`
 - API: `/games/url-battler/api/scan`
 - KV binding: `SCAN_CACHE`
+- Durable Object binding: `SCAN_GUARD`（SQLite-backed）
 
 このRouteは `yu-zora.com` 全体ではなく、`/games/url-battler` とその配下だけを担当します。
 
@@ -110,21 +113,41 @@ npx.cmd wrangler deploy
 
 `https://yu-zora.com/games/url-battler/api/scan`
 
-`configured.pageSpeedApiKey` と `configured.scanCache` が両方 `true` なら、Git/Cloudflare設定上の必須Bindingは見えています。実際のPageSpeed疎通はゲームからのPOSTで確認します。
+`configured.pageSpeedApiKey` / `configured.scanCache` / `configured.scanGuard` がすべて `true` なら、Git/Cloudflare設定上の必須Bindingは見えています。実際のPageSpeed疎通はゲームからのPOSTで確認します。
 
 `worker/wrangler.toml` はローカル/旧standalone用で、production Worker名とは別名にしています。本番デプロイは必ずリポジトリルートで `npx wrangler deploy` を実行してください。
 
-## SCAN ENERGY
+## SCAN ENERGY / PageSpeed保護
 
-- 1日5
-- ローカル時刻0:00で回復
+探索エナジーとPageSpeed新規測定枠は、ブラウザの `localStorage` ではなくWorker側のSQLite-backed Durable Objectを正として管理します。
+
+- 1ユーザー: 1日5回
+- リセット: 毎日0:00（日本時間 / Asia/Tokyo）
 - 未発見URL: -1
 - 共有KVに24時間以内の発見データあり: 0
 - 自分の24時間キャッシュ: 0
 - 最新データへ強制更新: -1
 - 保存カード / NPC戦 / 連戦: 0
+- PageSpeed新規測定: 全ユーザー合計で直近60秒150回まで
+- PageSpeed新規測定: 全ユーザー合計で1日15,000回まで
 
-将来のRewarded Ad用に `rewardUsed` フラグは保持しています。
+PageSpeedがタイムアウト・エラー・測定不可になった場合、ユーザーの探索エナジーは返却します。ただしGoogle API保護用の全体枠は「上流へ送った試行」として返却しません。
+
+匿名ユーザーの識別にはWorkerが発行するHttpOnly Cookieを使います。Cookie削除や別ブラウザまで完全に同一人物と判定することは、ログインなしではできません。その場合でも全体150回/60秒・15,000回/日の上限はDurable Object側で厳密に維持されるため、PageSpeed APIが無制限に叩かれることはありません。
+
+### 超過時
+
+- `USER_DAILY_LIMIT`: 今日の探索エナジーを使い切った
+- `SCANNER_MINUTE_LIMIT`: 直近60秒で150回に達した
+- `SCANNER_DAILY_LIMIT`: 当日15,000回に達した
+
+いずれも共有KVの発見済みURLは引き続き召喚できます。
+
+### 将来のRewarded Ad
+
+`ScanGuard.grantDailyReward()` に「消費済みエナジーを1日1回だけ1枠回復」のサーバー側状態を用意済みです。たとえば `0/5 → 1/5` になります。現時点では公開HTTPルートには接続していません。
+
+リワード広告を実装する際は、ブラウザの「広告視聴完了」イベントをそのまま信用せず、広告事業者のServer-Side Verification（SSV）等をWorkerで検証してから `grantDailyReward()` を呼び出してください。これにより、DevToolsからの偽装で回復される構成を避けられます。
 
 ## 安全方針
 

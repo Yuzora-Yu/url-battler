@@ -2,6 +2,7 @@
   "use strict";
 
   const SCAN_ENDPOINT = String(window.URL_BATTLER_CONFIG?.scanEndpoint || "").trim();
+  const ENERGY_ENDPOINT = SCAN_ENDPOINT ? SCAN_ENDPOINT.replace(/\/scan$/, "/energy") : "";
   const PUBLIC_APP_URL = String(window.URL_BATTLER_CONFIG?.publicAppUrl || location.origin).trim();
   const CACHE_TTL = 24 * 60 * 60 * 1000;
   const DAILY_ENERGY_MAX = 5;
@@ -197,33 +198,76 @@
   }
 
   function getEnergyState() {
-    const today = localDateKey();
-    let state = loadJson(LS.energy, null);
-    if (!state || state.date !== today) {
-      state = { date: today, remaining: DAILY_ENERGY_MAX, rewardUsed: false };
-      saveJson(LS.energy, state);
+    const cached = loadJson(LS.energy, null);
+    const resetExpired = Number(cached?.resetsAt || 0) > 0 && now() >= Number(cached.resetsAt);
+    if (resetExpired) {
+      return {
+        date: localDateKey(), remaining: DAILY_ENERGY_MAX, limit: DAILY_ENERGY_MAX,
+        baseLimit: DAILY_ENERGY_MAX, rewardUsed:false, rewardBonus:0,
+        resetsAt:null, synced:false
+      };
     }
-    state.remaining = clamp(Number(state.remaining ?? DAILY_ENERGY_MAX), 0, DAILY_ENERGY_MAX);
-    return state;
+    const limit = clamp(Number(cached?.limit ?? cached?.baseLimit ?? DAILY_ENERGY_MAX), DAILY_ENERGY_MAX, DAILY_ENERGY_MAX + 1);
+    return {
+      date: String(cached?.date || localDateKey()),
+      remaining: clamp(Number(cached?.remaining ?? DAILY_ENERGY_MAX), 0, limit),
+      limit,
+      baseLimit: DAILY_ENERGY_MAX,
+      rewardUsed: Boolean(cached?.rewardUsed),
+      rewardBonus: Number(cached?.rewardBonus || 0) === 1 ? 1 : 0,
+      resetsAt: Number(cached?.resetsAt || 0) || null,
+      synced: Boolean(cached?.synced)
+    };
   }
 
-  function consumeEnergy(amount = 1) {
-    const state = getEnergyState();
-    if (state.remaining < amount) return false;
-    state.remaining -= amount;
+  function energyNeedsSync() {
+    const cached = loadJson(LS.energy, null);
+    if (!cached?.synced) return true;
+    const resetsAt = Number(cached?.resetsAt || 0);
+    return resetsAt > 0 && now() >= resetsAt;
+  }
+
+  function updateEnergyFromServer(energy) {
+    if (!energy || !Number.isFinite(Number(energy.remaining))) return;
+    const limit = clamp(Number(energy.limit ?? energy.baseLimit ?? DAILY_ENERGY_MAX), DAILY_ENERGY_MAX, DAILY_ENERGY_MAX + 1);
+    const state = {
+      date: String(energy.date || localDateKey()),
+      remaining: clamp(Number(energy.remaining), 0, limit),
+      limit,
+      baseLimit: DAILY_ENERGY_MAX,
+      rewardUsed: Boolean(energy.rewardUsed),
+      rewardBonus: Number(energy.rewardBonus || 0) === 1 ? 1 : 0,
+      resetsAt: Number(energy.resetsAt || 0) || null,
+      synced: true
+    };
     saveJson(LS.energy, state);
     renderEnergy();
-    return true;
+  }
+
+  async function syncEnergyState() {
+    if (!ENERGY_ENDPOINT) return;
+    try {
+      const response = await fetch(ENERGY_ENDPOINT, {
+        method: "GET",
+        mode: "cors",
+        cache: "no-store",
+        credentials: "include"
+      });
+      const payload = await response.json().catch(() => null);
+      if (response.ok && payload?.energy) updateEnergyFromServer(payload.energy);
+    } catch {
+      // 表示用同期に失敗しても、実際の新規スキャン可否はWorker側で判定する。
+    }
   }
 
   function renderEnergy() {
     const state = getEnergyState();
-    $("#headerEnergy").textContent = `${state.remaining} / ${DAILY_ENERGY_MAX}`;
+    $("#headerEnergy").textContent = `${state.remaining} / ${state.limit}`;
     $("#energyRemaining").textContent = state.remaining;
-    $("#energyResetText").textContent = `毎日0:00に全回復`;
+    $("#energyResetText").textContent = `毎日0:00（日本時間）に全回復`;
     const orbs = $("#energyOrbs");
     if (orbs) {
-      orbs.innerHTML = Array.from({length:DAILY_ENERGY_MAX}, (_,i) =>
+      orbs.innerHTML = Array.from({length:state.limit}, (_,i) =>
         `<span class="energy-orb ${i < state.remaining ? "on" : ""}"></span>`
       ).join("");
     }
@@ -254,14 +298,11 @@
     }
 
     const energy = getEnergyState();
-    if (force && energy.remaining <= 0) {
-      throw new AppError("ENERGY_EMPTY", "最新データへの更新には探索エナジーが1必要です。発見済みURLなら、通常の召喚はエナジー0で試せます。");
-    }
 
     setApiState("測定中");
     showProgress(true, "サイト召喚中...", energy.remaining > 0
       ? "みんなが発見済みなら消費なし。未発見なら探索エナジーを1使います。"
-      : "探索エナジーが0なので、みんなが発見済みのURLだけ探します。");
+      : "発見済みURLは消費なし。未発見URLはサーバー側の残り回数を確認します。");
 
     let response, payload;
     try {
@@ -270,11 +311,12 @@
         mode: "cors",
         cache: "no-store",
         headers: { "content-type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           url,
           strategy,
           force: Boolean(force),
-          allowFresh: force ? true : energy.remaining > 0
+          allowFresh: true
         })
       });
       const text = await response.text();
@@ -286,6 +328,7 @@
       showProgress(false);
     }
 
+    if (payload?.energy) updateEnergyFromServer(payload.energy);
     if (!response.ok) {
       throw parseScannerError(response.status, payload);
     }
@@ -294,11 +337,6 @@
     }
 
     const cacheStatus = String(payload.cacheStatus || "MISS").toUpperCase();
-    if (cacheStatus !== "HIT") {
-      if (!consumeEnergy(1)) {
-        throw new AppError("ENERGY_RACE", "探索エナジーの状態が変わったため、今回はカードを召喚できませんでした。");
-      }
-    }
 
     const card = buildCard(url, strategy, payload);
     card.source = cacheStatus === "HIT" ? "shared-cache" : "new-scan";
@@ -317,6 +355,31 @@
     // ユーザー向け表示は簡潔に保ちつつ、原因コードはDevToolsに残す。
     console.error("[URL Battler scanner]", details);
 
+    if (code === "USER_DAILY_LIMIT") {
+      setApiState("エナジー0");
+      return new AppError(
+        "ENERGY_EMPTY",
+        "今日の探索エナジーを使い切りました。発見済みURL・保存カード・連戦モードはそのまま遊べます。探索エナジーは毎日0:00（日本時間）に回復します。",
+        details
+      );
+    }
+    if (code === "SCANNER_MINUTE_LIMIT") {
+      const wait = Math.max(1, Number(payload.retryAfter || 60));
+      setApiState("短時間混雑");
+      return new AppError(
+        "SCANNER_MINUTE_LIMIT",
+        `新しいURLの探索が短時間に集中しています（全体で最大150回/分）。約${wait}秒後にもう一度お試しください。発見済みURLはそのまま召喚できます。`,
+        details
+      );
+    }
+    if (code === "SCANNER_DAILY_LIMIT") {
+      setApiState("本日上限");
+      return new AppError(
+        "SCANNER_DAILY_LIMIT",
+        "本日の新規URL探索上限（全体で15,000回）に達しました。発見済みURL・保存カード・連戦モードはそのまま遊べます。新規探索は翌0:00（日本時間）に再開します。",
+        details
+      );
+    }
     if (status === 409 && code === "CACHE_MISS") {
       setApiState("エナジー0");
       return new AppError(
@@ -333,11 +396,19 @@
         details
       );
     }
-    if (code === "NO_API_KEY" || code === "NO_CACHE") {
+    if (code === "NO_API_KEY" || code === "NO_CACHE" || code === "NO_SCAN_GUARD") {
       setApiState("設定エラー");
       return new AppError(
         "SCANNER_CONFIG",
         "新しいURL探索サーバーの設定に問題があります。保存カードでの対戦は遊べます。",
+        details
+      );
+    }
+    if (code === "SCAN_GUARD_UNAVAILABLE") {
+      setApiState("制御サーバー障害");
+      return new AppError(
+        "SCAN_GUARD_UNAVAILABLE",
+        "新規探索の回数確認が一時的に利用できません。安全のため新しいURLの探索を停止しています。発見済みカードでの対戦は遊べます。",
         details
       );
     }
@@ -1856,7 +1927,11 @@
       if (e.key === "Enter") saveEditedCardName();
     });
     renderAll();
-    setInterval(renderEnergy, 60 * 1000);
+    if (energyNeedsSync()) syncEnergyState();
+    setInterval(() => {
+      renderEnergy();
+      if (energyNeedsSync()) syncEnergyState();
+    }, 60 * 1000);
   }
 
   init();

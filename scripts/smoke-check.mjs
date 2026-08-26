@@ -14,6 +14,10 @@ for (const token of ["BALANCE_VERSION = 6","playBattleAnimation","#URLバトラ�
 if (!config.includes('"/games/url-battler/api/scan"')) throw new Error("production scan endpoint must be absolute");
 if (!worker.includes('service: "url-battler-scan"') || !worker.includes('request.method === "GET"')) throw new Error("scanner health GET is missing");
 if (!worker.includes('\"UPSTREAM_TIMEOUT\"')) throw new Error("scanner upstream timeout handling is missing");
+if (!worker.includes("GLOBAL_MINUTE_LIMIT = 150") || !worker.includes("GLOBAL_DAILY_LIMIT = 15_000")) throw new Error("scanner global quota limits are missing");
+if (!worker.includes("USER_DAILY_ENERGY = 5") || !worker.includes("class ScanGuard")) throw new Error("server-side energy guard is missing");
+if (!app.includes('credentials: "include"') || !app.includes("syncEnergyState")) throw new Error("client server-side energy sync is missing");
+if (!rootWrangler.includes('"SCAN_GUARD"') || !rootWrangler.includes('"new_sqlite_classes"')) throw new Error("Durable Object scan guard binding/migration is missing");
 if (!rootWrangler.includes('"yu-zora.com/games/url-battler/*"')) throw new Error("production route subtree is missing");
 if (!rootWrangler.includes('"yu-zora.com/games/url-battler"')) throw new Error("production exact route is missing");
 if (/^name\s*=\s*["']url-battler-scan["']/m.test(legacyWrangler)) throw new Error("legacy worker config must not reuse production worker name");

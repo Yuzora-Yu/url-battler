@@ -18,7 +18,9 @@
     "directory": "./dist",
     "html_handling": "auto-trailing-slash",
     "binding": "ASSETS",
-    "run_worker_first": ["/games/url-battler/api/*"]
+    "run_worker_first": [
+      "/games/url-battler/api/*"
+    ]
   },
   "kv_namespaces": [
     {
@@ -30,5 +32,23 @@
     "APP_BASE_PATH": "/games/url-battler",
     "ALLOWED_ORIGINS": "https://yu-zora.com,http://localhost:8787,http://127.0.0.1:8787,http://localhost:8000,http://127.0.0.1:8000"
   },
-  "observability": { "enabled": true }
+  "observability": {
+    "enabled": true
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SCAN_GUARD",
+        "class_name": "ScanGuard"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1-scan-guard",
+      "new_sqlite_classes": [
+        "ScanGuard"
+      ]
+    }
+  ]
 }

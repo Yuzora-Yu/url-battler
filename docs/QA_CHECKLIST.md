@@ -6,8 +6,14 @@
 - 同じURLを再度入力してエナジーが減らない
 - シークレットウィンドウで同URLを入力して共有HITになる
 - エナジー0で共有HITは利用できる
-- エナジー0で共有MISSはPageSpeedを呼ばず停止する
+- エナジー0で共有MISSはWorker側で `USER_DAILY_LIMIT` になりPageSpeedを呼ばず停止する
 - 強制更新で1消費する
+- ブラウザのlocalStorageを書き換えてもWorker側残数は増えない
+- PageSpeed失敗時はユーザーのエナジーだけ返却される
+- `/games/url-battler/api/energy` の残数と画面表示が一致する
+- 直近60秒150件到達時は `SCANNER_MINUTE_LIMIT` / 429 になる
+- 当日15,000件到達時は `SCANNER_DAILY_LIMIT` / 429 になる
+- 429時でも共有HIT URLは召喚できる
 
 ## v0.3移行
 
@@ -46,6 +52,8 @@
 
 - https://yu-zora.com/games/url-battler/ が200
 - styles.css / app.jsが同パス配下から取得できる
+- GET /games/url-battler/api/scan で `configured.scanGuard: true` が返る
+- GET /games/url-battler/api/energy が200でサーバー側残数を返す
 - POST /games/url-battler/api/scan が200または正常なゲームエラーを返す
 - https://yu-zora.com/ 本体へ影響がない
 - /games/yubi-strategy/ へ影響がない
