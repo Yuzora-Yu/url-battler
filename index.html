@@ -65,7 +65,7 @@
               <input id="createUrl" class="url-input" inputmode="url" autocomplete="url" placeholder="https://example.com/character/hero" />
               <button id="scanButton" class="primary big-button">召喚する!</button>
             </div>
-            <p class="hint">トップページ以外もOK。キャラ紹介、記事、商品ページなど、そのURL自体を測定します。#以降だけ除外します。</p>
+            <p class="hint">トップページ以外もOK。キャラ紹介、記事、商品ページなど、そのページそのものがカードになります。#以降はカード化に影響しません。</p>
 
             <div class="settings-row">
               <label class="select-label">表示タイプ
@@ -122,13 +122,13 @@
             <span class="small-note">強いURLほど強い相棒</span>
           </div>
           <div class="stat-guide">
-            <div class="guide-hp"><b>耐久</b><span>ページの重さ・DOM・リクエスト数</span></div>
+            <div class="guide-hp"><b>耐久</b><span>ページの重さ・要素の多さ・通信量</span></div>
             <div class="guide-atk"><b>火力</b><span>画像・コンテンツ量・ページの物量</span></div>
-            <div class="guide-def"><b>守備</b><span>HTTPS・公開Best Practicesなど</span></div>
-            <div class="guide-spd"><b>速さ</b><span>表示速度・LCP・FCP・処理待ち</span></div>
-            <div class="guide-tec"><b>技術</b><span>JS・CSS・外部リソース・複雑さ</span></div>
+            <div class="guide-def"><b>守備</b><span>HTTPS・安全な配信設定など</span></div>
+            <div class="guide-spd"><b>速さ</b><span>最初の表示・大きな表示・処理待ち</span></div>
+            <div class="guide-tec"><b>技術</b><span>プログラム量・外部サービス・複雑さ</span></div>
           </div>
-          <p class="balance-copy">軽いページは速く、重いページはタフ。画像だらけなら火力、コードが濃ければ技術。戦闘力が上がるほど、より高Rankの相棒モンスターが現れます。</p>
+          <p class="balance-copy">軽いページは速く、重いページはタフ。画像だらけなら火力、仕掛けが多ければ技術。戦闘力が高いほど、より強い相棒モンスターが現れます。</p>
         </section>
       </section>
 
@@ -215,7 +215,7 @@
 
     <footer>
       <a href="https://yu-zora.com/">YU-ZORA PORTAL</a>
-      <p>公開ページの読み込みデータをゲーム用の能力に変換しています。「守備」はゲーム上の能力で、サイトの安全性を保証するものではありません。能力はページの状態によって変わることがあります。</p>
+      <p>公開ページから分かる特徴をゲーム用の能力に変換しています。「守備」はゲーム上の能力で、サイトの安全性を保証するものではありません。能力はページの状態によって変わることがあります。</p>
     </footer>
   </div>
 

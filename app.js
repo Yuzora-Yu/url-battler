@@ -48,11 +48,11 @@
     { id:"void", name:"無の境地", desc:"技術攻撃のダメージを軽減", priority:83 },
     { id:"triple-barrier", name:"三重結界", desc:"受けるダメージを軽減", priority:92 },
     { id:"third-party", name:"第三者召喚", desc:"開幕に能力ひとつを強化", priority:70 },
-    { id:"dom-maze", name:"DOM迷宮", desc:"複雑な構造で守備アップ", priority:65 },
-    { id:"iron-wall", name:"鉄壁", desc:"公開設定の堅さで守備アップ", priority:68 },
-    { id:"css-armor", name:"CSS甲冑", desc:"CSSの厚みで守備アップ", priority:55 },
+    { id:"dom-maze", name:"DOM迷宮", desc:"要素が入り組むほど守備アップ", priority:65 },
+    { id:"iron-wall", name:"鉄壁", desc:"守りの整ったページで守備アップ", priority:68 },
+    { id:"css-armor", name:"CSS甲冑", desc:"装飾の厚みで守備アップ", priority:55 },
     { id:"giant-life", name:"巨大生命", desc:"超重量ページで最大HPアップ", priority:74 },
-    { id:"clean-page", name:"静寂のページ", desc:"少リクエストで攻撃を回避", priority:60 },
+    { id:"clean-page", name:"静寂のページ", desc:"通信の少なさで攻撃を回避", priority:60 },
     { id:"unstable", name:"揺らぐ大地", desc:"不安定さを高威力へ変換", priority:40 }
   ];
   function skillByName(name) { return SKILL_DEFS.find(s => s.name === name); }
@@ -255,7 +255,7 @@
 
     const energy = getEnergyState();
     if (force && energy.remaining <= 0) {
-      throw new AppError("ENERGY_EMPTY", "最新データへの更新にはスキャンエナジーが1必要です。発見済みURLの通常召喚はエナジー0でも試せます。");
+      throw new AppError("ENERGY_EMPTY", "最新データへの更新には探索エナジーが1必要です。発見済みURLなら、通常の召喚はエナジー0で試せます。");
     }
 
     setApiState("測定中");
@@ -296,7 +296,7 @@
     const cacheStatus = String(payload.cacheStatus || "MISS").toUpperCase();
     if (cacheStatus !== "HIT") {
       if (!consumeEnergy(1)) {
-        throw new AppError("ENERGY_RACE", "スキャンエナジーの状態が変わったためカード生成を中止しました。");
+        throw new AppError("ENERGY_RACE", "探索エナジーの状態が変わったため、今回はカードを召喚できませんでした。");
       }
     }
 
@@ -340,7 +340,7 @@
       return new AppError("SERVICE", "新しいURLの探索を一時休止しています。保存カードでの対戦は遊べます。");
     }
     setApiState("エラー");
-    return new AppError("API", message || "URLを探索できませんでした。");
+    return new AppError("API", message || "このURLはうまく探索できませんでした。");
   }
 
   function buildCard(requestedUrl, strategy, payload) {
@@ -678,6 +678,48 @@
     return "初級";
   }
 
+
+  function cardGrade(card) {
+    const bp = Number(card?.bp || 0);
+    if (bp >= 920) return "LEGEND";
+    if (bp >= 860) return "SS";
+    if (bp >= 790) return "S";
+    if (bp >= 710) return "A";
+    if (bp >= 620) return "B";
+    return "C";
+  }
+
+  const BUDDY_RACE_BONUS = {
+    "竜":       { key:"atk", name:"火力", title:"竜の猛攻" },
+    "竜人":     { key:"atk", name:"火力", title:"竜人の猛攻" },
+    "獣":       { key:"spd", name:"速さ", title:"獣の疾走" },
+    "獣人":     { key:"spd", name:"速さ", title:"獣人の疾走" },
+    "機械":     { key:"def", name:"守備", title:"機鋼の守り" },
+    "無生物":   { key:"def", name:"守備", title:"鉄壁の守り" },
+    "粘体":     { key:"hp",  name:"耐久", title:"粘体の生命力" },
+    "植物":     { key:"hp",  name:"耐久", title:"大地の生命力" },
+    "精霊":     { key:"tec", name:"技術", title:"精霊のひらめき" },
+    "魔族":     { key:"tec", name:"技術", title:"魔族のひらめき" },
+    "死霊":     { key:"tec", name:"技術", title:"死霊のひらめき" },
+    "人":       { key:"atk", name:"火力", title:"人の闘志" }
+  };
+
+  function monsterBond(card) {
+    const monster = monsterForCard(card);
+    if (!monster) return null;
+    const rule = BUDDY_RACE_BONUS[monster.race] || { key:"atk", name:"火力", title:"相棒の闘志" };
+    let percent = 2 + Math.floor(Math.min(200, Number(monster.rank || 1)) / 45);
+    if (monster.boss) percent += 1;
+    if (monster.special) percent += 1;
+    percent = clamp(percent, 2, 8);
+    return { ...rule, percent, monster };
+  }
+
+  function buddyText(card) {
+    const buddy = monsterBond(card);
+    return buddy ? `${buddy.title}：${buddy.name}+${buddy.percent}%` : "";
+  }
+
   function skillIcon(skill) {
     const key = skill?.id || "normal";
     return ICONS[key] || ICONS.normal || "";
@@ -778,7 +820,7 @@
         <div class="monster-info">
           <small>相棒モンスター</small>
           <strong>${esc(monster.name)}</strong>
-          <span>Rank ${fmt(monster.rank)} / ${esc(monster.race)} / ${esc(monsterBadge(monster))}</span>
+          <span>ランク ${fmt(monster.rank)} ・ ${esc(monster.race)} ・ ${esc(monsterBadge(monster))}</span><em>${esc(buddyText(card))}</em>
         </div>
       </div>` : "";
     return `
@@ -789,7 +831,7 @@
             <div class="card-domain">${esc(card.domain)}</div>
             <div class="card-path">${esc(path)}</div>
           </div>
-          <div class="class-badge">${esc(classLabel(card))}</div>
+          <div class="class-badge"><b>${esc(cardGrade(card))}</b><span>${esc(classLabel(card))}</span></div>
         </div>
         <div class="card-core">
           <div class="card-bp"><small>戦闘力</small><strong>${fmt(card.bp)}</strong></div>
@@ -826,14 +868,19 @@
   function metricsHtml(card) {
     const m = card.metrics || {};
     if (m.isNpc) return "";
+    const speedSec = Number.isFinite(m.lcp) ? `${(m.lcp / 1000).toFixed(m.lcp < 1000 ? 2 : 1)}秒` : "—";
+    const programBytes = (Number(m.scriptBytes || 0) + Number(m.cssBytes || 0));
     return `
       <details class="scan-details">
-        <summary>このカードの強さのもとを見る</summary>
-        <p>
-          表示評価 ${m.perf ?? "—"} / ページ評価 ${m.best ?? "—"} / 転送 ${fmtBytes(m.totalBytes)} / ${fmt(m.requestCount)}リクエスト<br>
-          画像 ${fmt(m.imageCount)}枚 (${fmtBytes(m.imageBytes)}) / JS ${fmtBytes(m.scriptBytes)} / CSS ${fmtBytes(m.cssBytes)} / 外部ホスト ${fmt(m.thirdPartyDomains)} / DOM ${m.domNodes ? fmt(m.domNodes) : "n/a"}<br>
-          FCP ${m.fcp ? Math.round(m.fcp)+"ms" : "n/a"} / LCP ${m.lcp ? Math.round(m.lcp)+"ms" : "n/a"} / TBT ${m.tbt != null ? Math.round(m.tbt)+"ms" : "n/a"}
-        </p>
+        <summary>このカードの個性を見る</summary>
+        <div class="trait-grid">
+          <span><b>表示の軽快さ</b>${m.perf ?? "—"} / 100</span>
+          <span><b>ページの重さ</b>${fmtBytes(m.totalBytes)}</span>
+          <span><b>画像</b>${fmt(m.imageCount)}枚</span>
+          <span><b>プログラム量</b>${fmtBytes(programBytes)}</span>
+          <span><b>外部サービス</b>${fmt(m.thirdPartyDomains)}種類</span>
+          <span><b>大きな表示まで</b>${speedSec}</span>
+        </div>
       </details>`;
   }
 
@@ -873,7 +920,7 @@
     $("#headerCardCount").textContent = `${cards.length} / ${MAX_CARDS}`;
     const grid = $("#cardsGrid");
     if (!cards.length) {
-      grid.innerHTML = `<p class="muted">保存カードはまだありません。「カード生成」から最大5枚まで保存できます。</p>`;
+      grid.innerHTML = `<p class="muted">まだお気に入りカードはありません。「URL探索」で見つけたカードを最大5枚まで残せます。</p>`;
     } else {
       grid.innerHTML = cards.map(c => `
         <div class="card-wrap" data-card-id="${esc(c.id)}">
@@ -932,9 +979,9 @@
   }
 
   const ATTACK_NAMES = {
-    STATIC:"高速リクエスト", GUARD:"堅牢カウンター", APP:"コードバースト", MEDIA:"ビジュアルラッシュ",
-    TANK:"メガバイトプレス", PORTAL:"DOMコンボ", ARCHIVE:"文章ラッシュ", DESIGN:"スタイルブレード",
-    LEGACY:"古代の一撃", SUMMONER:"外部召喚", TITAN:"超重量プレス", CLOUD:"クラウドストライク", MAZE:"迷宮コンボ", WEB:"ウェブストライク"
+    STATIC:"光速タップ", GUARD:"ガードクラッシュ", APP:"コードバースト", MEDIA:"イメージラッシュ",
+    TANK:"ヘビープレス", PORTAL:"リンクストーム", ARCHIVE:"テキストラッシュ", DESIGN:"スタイルブレード",
+    LEGACY:"古代の一撃", SUMMONER:"助っ人召喚", TITAN:"ギガプレス", CLOUD:"クラウドストライク", MAZE:"迷宮コンボ", WEB:"ウェブストライク"
   };
   const STAT_NAMES = { atk:"火力", def:"守備", spd:"速さ", tec:"技術" };
 
@@ -987,10 +1034,27 @@
     if (f.skills.has("三重結界")) f.passiveNotes.push("三重結界：被ダメージ-10%");
     if (f.skills.has("無の境地")) f.passiveNotes.push("無の境地：技術攻撃を軽減");
     if (f.skills.has("静寂のページ")) f.passiveNotes.push("静寂のページ：ときどき攻撃回避");
+
+    const buddy = monsterBond(card);
+    f.buddy = buddy;
+    if (buddy) {
+      const rate = 1 + buddy.percent / 100;
+      if (buddy.key === "hp") {
+        f.maxHp = Math.round(f.maxHp * rate);
+        f.hp = f.maxHp;
+      } else if (buddy.key in f) {
+        f[buddy.key] *= rate;
+      }
+    }
     return f;
   }
 
   function applyOpening(f, rnd, events, log) {
+    if (f.buddy) {
+      const text = `相棒「${f.buddy.monster.name}」が援護! ${f.buddy.name}+${f.buddy.percent}%`;
+      events.push({ kind:"opening", cardId:f.card.id, skill:"相棒", text });
+      log.push(text);
+    }
     for (const note of f.passiveNotes.slice(0, 3)) {
       events.push({ kind:"opening", cardId:f.card.id, skill:note.split("：")[0], text:note });
       log.push(`${displayName(f.card)}「${note}」`);
@@ -1100,6 +1164,13 @@
     ].sort((a,b)=>b[1]-a[1]);
     if (statDiffs[0][1] >= 70) reasons.push({ title:statDiffs[0][0], detail:statDiffs[0][2] });
 
+    if (wf.buddy && wf.buddy.percent >= 5) {
+      reasons.push({
+        title:"相棒の援護",
+        detail:`${wf.buddy.monster.name}の「${wf.buddy.title}」で${wf.buddy.name}+${wf.buddy.percent}%`
+      });
+    }
+
     const winnerEvents = r.events.filter(e => e.attackerId === r.winnerId && (e.kind === "attack" || e.kind === "extra"));
     const skillCounts = new Map();
     for (const e of winnerEvents) if (e.skillName) skillCounts.set(e.skillName, (skillCounts.get(e.skillName)||0)+1);
@@ -1155,7 +1226,7 @@
         ${monster ? `
           <div class="fighter-monster">
             <img src="${esc(monster.image)}" alt="${esc(monster.name)}" />
-            <div><b>${esc(monster.name)}</b><span>Rank ${fmt(monster.rank)} / ${esc(monster.race)}</span></div>
+            <div><b>${esc(monster.name)}</b><span>ランク ${fmt(monster.rank)} ・ ${esc(monster.race)}<br>${esc(buddyText(card))}</span></div>
           </div>` : ""}
         <div class="hp-line">
           <div class="hp-label"><span>HP</span><b class="hp-text">${fmt(hp)} / ${fmt(hp)}</b></div>
@@ -1313,7 +1384,7 @@
     resultEl.innerHTML = `
       <div class="winner-strip">
         <div><small>勝者 / ${r.turns}ターン</small><h3>${esc(displayName(r.winner))}</h3>
-          ${monsterForCard(r.winner) ? `<p class="winner-monster-name">相棒 ${esc(monsterForCard(r.winner).name)} / Rank ${fmt(monsterForCard(r.winner).rank)}</p>` : ""}
+          ${monsterForCard(r.winner) ? `<p class="winner-monster-name">相棒 ${esc(monsterForCard(r.winner).name)} / ランク ${fmt(monsterForCard(r.winner).rank)}</p>` : ""}
         </div>
         ${monsterForCard(r.winner) ? `<img class="winner-monster" src="${esc(monsterForCard(r.winner).image)}" alt="${esc(monsterForCard(r.winner).name)}" />` : ""}
         <div class="winner-badge">勝<br>利!</div>
@@ -1365,9 +1436,9 @@
   }
 
   function makeCardShareText(card) {
-    const statLine = `戦闘力 ${card.bp}｜耐久${card.stats.hp} 火力${card.stats.atk} 守備${card.stats.def} 速さ${card.stats.spd} 技術${card.stats.tec}`;
+    const statLine = `戦闘力 ${card.bp}【${cardGrade(card)}級】｜耐久${card.stats.hp} 火力${card.stats.atk} 守備${card.stats.def} 速さ${card.stats.spd} 技術${card.stats.tec}`;
     const monster = monsterForCard(card);
-    const buddyLine = monster ? `相棒 ${monster.name} / Rank ${monster.rank}` : "";
+    const buddyLine = monster ? `相棒 ${monster.name} / ランク${monster.rank}` : "";
     let name = displayName(card).slice(0, 42);
     let text = `⚡強URL発見!「${name}」\n${statLine}${buddyLine ? `\n${buddyLine}` : ""}\n${card.url}\n#URLバトラー\n${PUBLIC_APP_URL}`;
     while (xWeightedEstimate(text) > 270 && name.length > 8) {
@@ -1440,51 +1511,84 @@
     c.width = 1200; c.height = 630;
     const x = c.getContext("2d");
     const monster = monsterForCard(card);
-    const monsterImg = await loadCanvasImage(monster?.image);
+    const buddy = monsterBond(card);
+    const [monsterImg, ...statImgs] = await Promise.all([
+      loadCanvasImage(monster?.image),
+      ...["hp","atk","def","spd","tec"].map(k => loadCanvasImage(statIcon(k)))
+    ]);
+    const skillImgs = await Promise.all((card.skills || []).slice(0,3).map(s => loadCanvasImage(skillIcon(s))));
     const [,accent] = cardColors(card);
 
+    // Background and solid printable frame.
     x.fillStyle = "#bfe8ff"; x.fillRect(0,0,1200,630);
-    x.fillStyle = "#fff9ea"; roundRect(x,32,24,1136,582,30); x.fill();
+    x.fillStyle = "#fff9ea"; roundRect(x,30,22,1140,586,30); x.fill();
     x.lineWidth=6; x.strokeStyle="#17202b"; x.stroke();
 
-    x.fillStyle = "#ffd83d"; roundRect(x,46,38,1108,66,17); x.fill();
-    x.fillStyle = "#17202b"; x.font = "900 26px sans-serif"; x.fillText("URLバトラー",72,80);
-    x.textAlign="right"; x.font="900 19px sans-serif"; x.fillText("強URLカード",1125,79); x.textAlign="left";
+    // Header.
+    x.fillStyle = "#ffd83d"; roundRect(x,48,42,1104,70,16); x.fill();
+    x.fillStyle = "#17202b"; x.font = "900 28px sans-serif"; x.fillText("URLバトラー",74,86);
+    x.fillStyle = "#ff5e9f"; roundRect(x,954,54,174,46,23); x.fill();
+    x.fillStyle = "#fff"; x.font = "900 19px sans-serif"; x.textAlign="center";
+    x.fillText(`${cardGrade(card)}級・${classLabel(card)}`,1041,84); x.textAlign="left";
 
-    x.fillStyle="#17202b"; x.font="900 52px sans-serif"; fitText(x, displayName(card), 70, 164, 620);
-    x.fillStyle="#208cff"; x.font="800 20px sans-serif"; x.fillText(compactUrlForImage(card.url,68),70,202);
-    x.fillStyle="#667085"; x.font="900 17px sans-serif";
-    x.fillText(`${classLabel(card)} / ${card.strategy === "mobile" ? "スマホ版" : "PC版"}`,70,232);
+    // Left info.
+    x.fillStyle="#17202b"; x.font="900 50px sans-serif"; fitText(x, displayName(card), 72, 168, 600);
+    x.fillStyle="#208cff"; x.font="800 19px sans-serif"; fitText(x, compactUrlForImage(card.url,72),72,202,600);
 
-    x.fillStyle="#ff5e9f"; x.font="900 82px sans-serif"; x.fillText(String(card.bp),70,330);
-    x.fillStyle="#17202b"; x.font="900 19px sans-serif"; x.fillText("戦闘力",74,356);
+    x.fillStyle="#667085"; x.font="900 15px sans-serif";
+    x.fillText(card.strategy === "mobile" ? "スマホ表示" : "PC表示",72,232);
 
-    const skills=(card.skills||[]).map(s=>s.name).slice(0,3);
-    x.fillStyle="#17202b"; x.font="900 18px sans-serif";
-    x.fillText(`固有技  ${skills.length?skills.join(" / "):"ノーマル"}`,70,401);
+    x.fillStyle="#ff5e9f"; x.font="900 84px sans-serif"; x.fillText(String(card.bp),72,326);
+    x.fillStyle="#17202b"; x.font="900 18px sans-serif"; x.fillText("戦闘力",77,354);
 
+    // Skill chips.
+    const skills=(card.skills||[]).slice(0,3);
+    const skillY = 378;
+    if (skills.length) {
+      skills.forEach((s,i)=>{
+        const py=skillY+i*38;
+        x.fillStyle=i===0 ? "#fff2bf" : "#ffffff"; roundRect(x,72,py,570,31,9); x.fill();
+        x.lineWidth=2; x.strokeStyle="#17202b"; x.stroke();
+        drawImageContain(x, skillImgs[i], 80, py+3, 25,25);
+        x.fillStyle="#17202b"; x.font="900 15px sans-serif"; x.fillText(s.name,114,py+21);
+        x.fillStyle="#667085"; x.font="800 12px sans-serif"; fitText(x,s.desc,245,py+20,385);
+      });
+    } else {
+      x.fillStyle="#667085"; x.font="800 14px sans-serif"; x.fillText("固有技：ノーマル",72,402);
+    }
+
+    // Monster showcase.
+    x.fillStyle="#edf8ff"; roundRect(x,694,132,426,322,24); x.fill();
+    x.lineWidth=4; x.strokeStyle="#17202b"; x.stroke();
+    x.fillStyle=accent; x.globalAlpha=.15; x.beginPath(); x.arc(910,265,170,0,Math.PI*2); x.fill(); x.globalAlpha=1;
+    drawImageContain(x, monsterImg, 730,145,355,230);
     if (monster) {
-      x.fillStyle=accent; x.globalAlpha=.16; x.beginPath(); x.arc(940,250,190,0,Math.PI*2); x.fill(); x.globalAlpha=1;
-      drawImageContain(x, monsterImg, 760,112,350,285);
-      x.fillStyle="#17202b"; x.font="900 25px sans-serif"; x.textAlign="center"; x.fillText(monster.name,935,417);
-      x.fillStyle="#667085"; x.font="800 16px sans-serif";
-      x.fillText(`相棒モンスター / Rank ${monster.rank} / ${monster.race} / ${monsterBadge(monster)}`,935,445);
+      x.fillStyle="#17202b"; x.textAlign="center"; x.font="900 24px sans-serif"; fitText(x,monster.name,735,392,350);
+      x.fillStyle="#667085"; x.font="900 14px sans-serif";
+      x.fillText(`${monsterBadge(monster)} ・ ランク ${monster.rank} ・ ${monster.race}`,907,420);
+      if (buddy) {
+        x.fillStyle="#ff5e9f"; x.font="900 14px sans-serif";
+        x.fillText(`${buddy.title}　${buddy.name}+${buddy.percent}%`,907,444);
+      }
       x.textAlign="left";
     }
 
+    // Stats.
     const labels=["耐久","火力","守備","速さ","技術"];
     const vals=[card.stats.hp,card.stats.atk,card.stats.def,card.stats.spd,card.stats.tec];
     const fills=["#fff0df","#ffe2ef","#e0f3ff","#fff6bd","#eee8ff"];
     labels.forEach((lab,i)=>{
-      const px=70+i*210;
-      x.fillStyle=fills[i]; roundRect(x,px,470,188,82,13); x.fill();
-      x.lineWidth=4; x.strokeStyle="#17202b"; x.stroke();
-      x.fillStyle="#667085"; x.font="900 15px sans-serif"; x.fillText(lab,px+14,497);
-      x.fillStyle="#17202b"; x.font="900 38px sans-serif"; x.fillText(String(vals[i]),px+14,538);
+      const px=72+i*212;
+      x.fillStyle=fills[i]; roundRect(x,px,484,192,80,13); x.fill();
+      x.lineWidth=3; x.strokeStyle="#17202b"; x.stroke();
+      drawImageContain(x, statImgs[i], px+10,498,30,30);
+      x.fillStyle="#667085"; x.font="900 13px sans-serif"; x.fillText(lab,px+47,508);
+      x.fillStyle="#17202b"; x.font="900 34px sans-serif"; x.fillText(String(vals[i]),px+47,548);
     });
 
-    x.fillStyle="#ff5e9f"; x.font="900 22px sans-serif"; x.fillText("#URLバトラー",70,586);
-    x.fillStyle="#17202b"; x.font="700 15px sans-serif"; x.fillText(compactUrlForImage(PUBLIC_APP_URL,80),250,585);
+    // Footer safe area.
+    x.fillStyle="#ff5e9f"; x.font="900 21px sans-serif"; x.fillText("#URLバトラー",72,592);
+    x.fillStyle="#17202b"; x.font="800 14px sans-serif"; fitText(x,compactUrlForImage(PUBLIC_APP_URL,80),246,591,700);
     return canvasBlob(c);
   }
 
@@ -1520,43 +1624,57 @@
     const c=document.createElement("canvas"); c.width=1200; c.height=630;
     const x=c.getContext("2d");
     const monster=monsterForCard(r.winner);
+    const buddy=monsterBond(r.winner);
     const monsterImg=await loadCanvasImage(monster?.image);
 
     x.fillStyle="#ffd83d"; x.fillRect(0,0,1200,630);
-    x.fillStyle="#fff9ea"; roundRect(x,32,24,1136,582,30); x.fill();
+    x.fillStyle="#fff9ea"; roundRect(x,30,22,1140,586,30); x.fill();
     x.lineWidth=6; x.strokeStyle="#17202b"; x.stroke();
 
-    x.fillStyle="#61c9ff"; roundRect(x,46,38,1108,66,17); x.fill();
-    x.fillStyle="#17202b"; x.font="900 25px sans-serif"; x.fillText("URLバトラー / 対戦結果",72,80);
+    x.fillStyle="#61c9ff"; roundRect(x,48,42,1104,70,16); x.fill();
+    x.fillStyle="#17202b"; x.font="900 27px sans-serif"; x.fillText("URLバトラー",74,86);
+    x.fillStyle="#fff"; x.font="900 18px sans-serif"; x.textAlign="right";
+    x.fillText(`${r.turns}ターン決着`,1126,84); x.textAlign="left";
 
-    x.fillStyle="#ff5e9f"; x.font="900 68px sans-serif"; x.fillText("勝利!",70,178);
-    x.fillStyle="#17202b"; x.font="900 48px sans-serif"; fitText(x,displayName(r.winner),260,176,560);
-    x.fillStyle="#667085"; x.font="800 19px sans-serif"; x.fillText(`${r.turns}ターン決着 / 戦闘力 ${r.winner.bp}`,264,210);
+    x.fillStyle="#ff5e9f"; x.font="900 72px sans-serif"; x.fillText("WIN!",70,184);
+    x.fillStyle="#17202b"; x.font="900 46px sans-serif"; fitText(x,displayName(r.winner),260,180,520);
+    x.fillStyle="#667085"; x.font="900 17px sans-serif"; x.fillText(`戦闘力 ${r.winner.bp} ・ ${cardGrade(r.winner)}級`,264,214);
 
+    // Winner reason panel.
+    const reason=r.reasons?.[0];
+    x.fillStyle="#ffffff"; roundRect(x,70,248,630,126,16); x.fill();
+    x.lineWidth=3; x.strokeStyle="#17202b"; x.stroke();
+    x.fillStyle="#ff5e9f"; x.font="900 16px sans-serif"; x.fillText("勝負を決めたポイント",90,279);
+    x.fillStyle="#17202b"; x.font="900 27px sans-serif"; fitText(x,reason?.title || "総合力",90,319,575);
+    x.fillStyle="#667085"; x.font="800 15px sans-serif"; fitText(x,reason?.detail || "能力と固有技の組み合わせ",90,350,575);
+
+    // Winner monster.
+    x.fillStyle="#edf8ff"; roundRect(x,748,126,372,300,22); x.fill();
+    x.lineWidth=4; x.strokeStyle="#17202b"; x.stroke();
+    drawImageContain(x,monsterImg,775,138,320,220);
     if (monster) {
-      x.fillStyle="#fff0c7"; x.beginPath(); x.arc(965,265,180,0,Math.PI*2); x.fill();
-      drawImageContain(x,monsterImg,790,112,340,300);
-      x.fillStyle="#17202b"; x.textAlign="center"; x.font="900 24px sans-serif"; x.fillText(monster.name,960,420);
-      x.fillStyle="#667085"; x.font="800 15px sans-serif"; x.fillText(`Rank ${monster.rank} / ${monster.race}`,960,446); x.textAlign="left";
+      x.fillStyle="#17202b"; x.textAlign="center"; x.font="900 23px sans-serif"; fitText(x,monster.name,778,378,315);
+      x.fillStyle="#667085"; x.font="900 14px sans-serif"; x.fillText(`ランク ${monster.rank} ・ ${monster.race}`,934,404);
+      if (buddy) {
+        x.fillStyle="#ff5e9f"; x.font="900 13px sans-serif"; x.fillText(`${buddy.name}+${buddy.percent}%`,934,426);
+      }
+      x.textAlign="left";
     }
 
-    const reason=r.reasons?.[0];
-    x.fillStyle="#17202b"; x.font="900 22px sans-serif"; x.fillText(`勝因：${reason?.title || "総合力"}`,70,266);
-    x.fillStyle="#667085"; x.font="700 17px sans-serif"; fitText(x,reason?.detail || "能力と固有技の組み合わせ",70,298,650);
-
+    // Stats.
     const labels=["耐久","火力","守備","速さ","技術"];
     const vals=[r.winner.stats.hp,r.winner.stats.atk,r.winner.stats.def,r.winner.stats.spd,r.winner.stats.tec];
     const fills=["#fff0df","#ffe2ef","#e0f3ff","#fff6bd","#eee8ff"];
     labels.forEach((lab,i)=>{
-      const px=70+i*210;
-      x.fillStyle=fills[i]; roundRect(x,px,468,188,82,13); x.fill();
-      x.lineWidth=4; x.strokeStyle="#17202b"; x.stroke();
-      x.fillStyle="#667085"; x.font="900 15px sans-serif"; x.fillText(lab,px+14,495);
-      x.fillStyle="#17202b"; x.font="900 38px sans-serif"; x.fillText(String(vals[i]),px+14,537);
+      const px=70+i*212;
+      x.fillStyle=fills[i]; roundRect(x,px,458,192,82,13); x.fill();
+      x.lineWidth=3; x.strokeStyle="#17202b"; x.stroke();
+      x.fillStyle="#667085"; x.font="900 14px sans-serif"; x.fillText(lab,px+14,485);
+      x.fillStyle="#17202b"; x.font="900 36px sans-serif"; x.fillText(String(vals[i]),px+14,526);
     });
 
-    x.fillStyle="#17202b"; x.font="800 16px sans-serif"; x.fillText(`${displayName(r.cardA)}  VS  ${displayName(r.cardB)}`,70,579);
-    x.fillStyle="#ff5e9f"; x.textAlign="right"; x.font="900 21px sans-serif"; x.fillText("#URLバトラー",1125,579); x.textAlign="left";
+    x.fillStyle="#17202b"; x.font="800 15px sans-serif"; fitText(x,`${displayName(r.cardA)}  VS  ${displayName(r.cardB)}`,70,584,780);
+    x.fillStyle="#ff5e9f"; x.textAlign="right"; x.font="900 21px sans-serif"; x.fillText("#URLバトラー",1125,584); x.textAlign="left";
     return canvasBlob(c);
   }
 

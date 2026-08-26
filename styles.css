@@ -236,3 +236,94 @@ footer{margin-top:16px;padding:20px 4px 0;display:flex;justify-content:space-bet
   .winner-strip { grid-template-columns:1fr 80px 70px; }
   .winner-monster { width:76px; height:70px; }
 }
+
+
+/* v0.7: player-facing polish / buddy bonuses / battle feel */
+.class-badge {
+  display:flex;
+  align-items:center;
+  gap:5px;
+}
+.class-badge b {
+  display:inline-grid;
+  place-items:center;
+  min-width:27px;
+  height:21px;
+  padding:0 5px;
+  border:1px solid var(--ink);
+  border-radius:999px;
+  background:var(--pink);
+  color:#fff;
+  font-size:8px;
+  line-height:1;
+}
+.class-badge span { font-size:8px; }
+
+.monster-info em {
+  display:inline-block;
+  margin-top:6px;
+  padding:3px 6px;
+  border:1px solid var(--ink);
+  border-radius:999px;
+  background:#fff;
+  color:var(--pink);
+  font-size:7px;
+  font-style:normal;
+  font-weight:1000;
+}
+
+.trait-grid {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:6px;
+  margin-top:8px;
+}
+.trait-grid span {
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  border:1px solid rgba(23,32,43,.25);
+  border-radius:7px;
+  padding:7px 8px;
+  background:rgba(255,255,255,.72);
+  font-size:8px;
+  font-weight:900;
+  color:var(--ink);
+}
+.trait-grid b {
+  font-size:7px;
+  color:var(--muted);
+}
+
+.battle-fighter.lunge-left .fighter-monster img,
+.battle-fighter.lunge-right .fighter-monster img {
+  animation:buddyPounce .36s ease;
+}
+@keyframes buddyPounce {
+  0% { transform:translateY(0) scale(1); }
+  45% { transform:translateY(-10px) scale(1.12) rotate(-3deg); }
+  100% { transform:translateY(0) scale(1); }
+}
+.battle-fighter.right.lunge-left .fighter-monster img,
+.battle-fighter.right.lunge-right .fighter-monster img {
+  animation:buddyPounceRight .36s ease;
+}
+@keyframes buddyPounceRight {
+  0% { transform:scaleX(-1) translateY(0) scale(1); }
+  45% { transform:scaleX(-1) translateY(-10px) scale(1.12) rotate(-3deg); }
+  100% { transform:scaleX(-1) translateY(0) scale(1); }
+}
+
+.battle-effect-art.show img {
+  animation:effectPulse .58s ease;
+}
+@keyframes effectPulse {
+  0% { filter:drop-shadow(0 0 0 rgba(255,255,255,0)); }
+  35% { filter:drop-shadow(0 0 20px rgba(255,255,255,1)) saturate(1.5); }
+  100% { filter:drop-shadow(0 0 8px rgba(255,255,255,.4)); }
+}
+
+@media(max-width:650px) {
+  .trait-grid { grid-template-columns:1fr 1fr; }
+  .class-badge { flex-direction:column; align-items:flex-end; gap:2px; }
+}
