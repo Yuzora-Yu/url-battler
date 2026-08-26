@@ -5,7 +5,7 @@
     // 本番・wrangler devでは同一オリジンの /games/url-battler/api/scan を使う。
     scanEndpoint: localStatic
       ? "https://url-battler-scan.rikai-829.workers.dev/scan"
-      : "./api/scan",
+      : "/games/url-battler/api/scan",
     publicAppUrl: "https://yu-zora.com/games/url-battler/"
   };
 })();

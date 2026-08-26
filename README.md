@@ -96,13 +96,23 @@ npx.cmd wrangler deploy
 `wrangler.jsonc` に以下を設定済みです。
 
 - Worker: `url-battler-scan`
-- Route: `yu-zora.com/games/url-battler*`
+- Routes: `yu-zora.com/games/url-battler` / `yu-zora.com/games/url-battler/*`
 - Zone: `yu-zora.com`
 - Static Assets: `./dist`
 - API: `/games/url-battler/api/scan`
 - KV binding: `SCAN_CACHE`
 
-このRouteは `yu-zora.com` 全体ではなく、`/games/url-battler` 配下だけを担当します。
+このRouteは `yu-zora.com` 全体ではなく、`/games/url-battler` とその配下だけを担当します。
+
+### APIの疎通確認
+
+ブラウザで次を開くと、POSTスキャンを実行せずにWorkerのルーティングとBinding状態だけ確認できます。
+
+`https://yu-zora.com/games/url-battler/api/scan`
+
+`configured.pageSpeedApiKey` と `configured.scanCache` が両方 `true` なら、Git/Cloudflare設定上の必須Bindingは見えています。実際のPageSpeed疎通はゲームからのPOSTで確認します。
+
+`worker/wrangler.toml` はローカル/旧standalone用で、production Worker名とは別名にしています。本番デプロイは必ずリポジトリルートで `npx wrangler deploy` を実行してください。
 
 ## SCAN ENERGY
 

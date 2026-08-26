@@ -312,35 +312,73 @@
   function parseScannerError(status, payload = {}) {
     const code = String(payload.code || "");
     const message = String(payload.message || "");
+    const details = { status, code, message };
+
+    // ユーザー向け表示は簡潔に保ちつつ、原因コードはDevToolsに残す。
+    console.error("[URL Battler scanner]", details);
 
     if (status === 409 && code === "CACHE_MISS") {
       setApiState("エナジー0");
       return new AppError(
         "ENERGY_EMPTY",
-        "このURLはまだ誰にも発見されていません。今日のスキャンエナジーを使い切っています。保存カード・連戦モードはそのまま遊べます。"
+        "このURLはまだ誰にも発見されていません。今日のスキャンエナジーを使い切っています。保存カード・連戦モードはそのまま遊べます。",
+        details
       );
     }
     if (status === 429 || code === "SCANNER_LIMIT" || code === "UPSTREAM_LIMIT") {
       setApiState("混雑中");
       return new AppError(
         "SCANNER_LIMIT",
-        "新しいURLの探索が混み合っています。発見済みカードや保存カードでの対戦は遊べます。"
+        "新しいURLの探索が混み合っています。発見済みカードや保存カードでの対戦は遊べます。",
+        details
+      );
+    }
+    if (code === "NO_API_KEY" || code === "NO_CACHE") {
+      setApiState("設定エラー");
+      return new AppError(
+        "SCANNER_CONFIG",
+        "新しいURL探索サーバーの設定に問題があります。保存カードでの対戦は遊べます。",
+        details
+      );
+    }
+    if (code === "CACHE_UNAVAILABLE") {
+      setApiState("キャッシュ障害");
+      return new AppError(
+        "CACHE_UNAVAILABLE",
+        "発見済みURLの確認機能が一時的に利用できません。少し時間をおいてお試しください。",
+        details
+      );
+    }
+    if (code === "UPSTREAM_NETWORK" || code === "UPSTREAM_TIMEOUT") {
+      setApiState("外部通信障害");
+      return new AppError(
+        "UPSTREAM_NETWORK",
+        "強さを測定する外部サービスへ接続できませんでした。少し時間をおいてお試しください。",
+        details
+      );
+    }
+    if (code === "UPSTREAM_BUSY") {
+      setApiState("外部API混雑");
+      return new AppError(
+        "UPSTREAM_BUSY",
+        "強さを測定する外部サービスが一時的に利用できません。保存カードでの対戦は遊べます。",
+        details
       );
     }
     if (status === 403) {
       setApiState("利用不可");
-      return new AppError("DENIED", "いまは新しいURLを探索できません。しばらくしてからお試しください。");
+      return new AppError("DENIED", "いまは新しいURLを探索できません。しばらくしてからお試しください。", details);
     }
     if (status === 400 || status === 422) {
       setApiState("測定不可");
-      return new AppError("SCAN_REJECTED", message || "このURLはカードにできませんでした。");
+      return new AppError("SCAN_REJECTED", message || "このURLはカードにできませんでした。", details);
     }
     if (status >= 500) {
-      setApiState("混雑中");
-      return new AppError("SERVICE", "新しいURLの探索を一時休止しています。保存カードでの対戦は遊べます。");
+      setApiState("サービス障害");
+      return new AppError("SERVICE", "新しいURLの探索を一時休止しています。保存カードでの対戦は遊べます。", details);
     }
     setApiState("エラー");
-    return new AppError("API", message || "このURLはうまく探索できませんでした。");
+    return new AppError("API", message || "このURLはうまく探索できませんでした。", details);
   }
 
   function buildCard(requestedUrl, strategy, payload) {

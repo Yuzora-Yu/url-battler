@@ -4,10 +4,16 @@
   "main": "worker/worker.js",
   "compatibility_date": "2026-08-26",
   "workers_dev": true,
-  "route": {
-    "pattern": "yu-zora.com/games/url-battler*",
-    "zone_name": "yu-zora.com"
-  },
+  "routes": [
+    {
+      "pattern": "yu-zora.com/games/url-battler",
+      "zone_name": "yu-zora.com"
+    },
+    {
+      "pattern": "yu-zora.com/games/url-battler/*",
+      "zone_name": "yu-zora.com"
+    }
+  ],
   "assets": {
     "directory": "./dist",
     "html_handling": "auto-trailing-slash",
