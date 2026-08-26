@@ -2,218 +2,193 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="color-scheme" content="dark" />
-  <meta name="description" content="URLをPageSpeed Insightsでカード化して戦うブラウザゲーム。発見済みURLはSCAN ENERGY消費なし。" />
-  <title>URL BATTLER ZERO</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#55c8ff" />
+  <meta name="description" content="URLを入れるとWebページがカードになる。速さ・重さ・画像・コード・公開設定を戦闘力に変えて戦うブラウザゲーム。" />
+  <title>URLバトラー | YU-ZORA GAMES</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
+  <div class="dot-bg" aria-hidden="true"></div>
   <div class="app-shell">
-    <header class="topbar">
-      <div>
-        <p class="eyebrow">LOW COST DISCOVERY MVP</p>
-        <h1>URL <span>BATTLER</span></h1>
-        <p class="tagline">そのページの重さ、速さ、コードが戦闘力になる。</p>
-      </div>
-      <div class="top-stats">
-        <div class="mini-stat energy-stat"><small>SCAN ENERGY</small><strong id="headerEnergy">5 / 5</strong></div>
-        <div class="mini-stat"><small>MY CARDS</small><strong id="headerCardCount">0 / 5</strong></div>
-        <div class="mini-stat"><small>SCANNER</small><strong id="headerApiState">READY</strong></div>
+    <header class="site-header">
+      <a class="portal-brand" href="https://yu-zora.com/" aria-label="YU-ZORA PORTALへ戻る">
+        <span class="portal-mark">Y</span>
+        <span><b>YU-ZORA</b><small>GAMES</small></span>
+      </a>
+      <div class="header-status">
+        <div class="status-ticket energy-ticket"><small>スキャンエナジー</small><strong id="headerEnergy">5 / 5</strong></div>
+        <div class="status-ticket"><small>マイカード</small><strong id="headerCardCount">0 / 5</strong></div>
+        <div class="status-ticket scanner-ticket"><small>スキャナー</small><strong id="headerApiState">待機中</strong></div>
       </div>
     </header>
+
+    <section class="hero-pop">
+      <div class="hero-copy">
+        <span class="tape">URLを入れろ。サイトが戦士になる。</span>
+        <h1><span>URL</span><b>バトラー</b></h1>
+        <p>速い。重い。画像だらけ。コードまみれ。<br>そのページらしさを、ぜんぶ強さに変えて戦おう。</p>
+        <div class="hero-stickers">
+          <span>1日5回探索</span><span>発見済みは0消費</span><span>手持ちは5枚</span><span>SNS共有OK</span>
+        </div>
+      </div>
+      <div class="hero-burst" aria-hidden="true">
+        <div class="burst-ring"><span>WWW</span><b>VS</b><span>URL</span></div>
+        <p>強URL<br>みつけろ!</p>
+      </div>
+    </section>
 
     <div id="globalAlert" class="alert hidden" role="alert"></div>
 
     <nav class="tabs" aria-label="メインメニュー">
-      <button class="tab active" data-view="create">カード生成</button>
-      <button class="tab" data-view="cards">マイカード</button>
-      <button class="tab" data-view="battle">URL VS URL</button>
-      <button class="tab" data-view="rush">URL RUSH</button>
-      <button class="tab" data-view="history">戦歴</button>
+      <button class="tab active" data-view="create"><span>01</span>カード発見</button>
+      <button class="tab" data-view="cards"><span>02</span>マイカード</button>
+      <button class="tab" data-view="battle"><span>03</span>URL対戦</button>
+      <button class="tab" data-view="rush"><span>04</span>連戦モード</button>
+      <button class="tab" data-view="history"><span>05</span>戦歴</button>
     </nav>
 
     <main>
       <section id="view-create" class="view active">
         <div class="hero-grid">
-          <div class="panel">
+          <section class="panel scan-panel">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">CAPTURE A WEB PAGE</p>
-                <h2>URLからカードを生成</h2>
+                <p class="kicker">DISCOVER A CARD</p>
+                <h2>URLからカード発見!</h2>
               </div>
-              <span class="pill" id="createApiPill">NEW -1 / HIT 0</span>
+              <span class="pill" id="createApiPill">新規 -1 / 発見済み 0</span>
             </div>
 
-            <label class="field-label" for="createUrl">公開WebページURL</label>
+            <label class="field-label" for="createUrl">戦わせたい公開Webページ</label>
             <div class="url-row">
-              <input id="createUrl" class="url-input" inputmode="url" autocomplete="url"
-                placeholder="https://example.com/characters/hero?id=7" />
-              <button id="scanButton" class="primary">カード化</button>
+              <input id="createUrl" class="url-input" inputmode="url" autocomplete="url" placeholder="https://example.com/character/hero" />
+              <button id="scanButton" class="primary big-button">発見する!</button>
             </div>
-            <p class="hint">
-              トップページ以外もOK。パス・クエリを維持して、そのページ自体を測定します。
-              URLのフラグメント（#〜）だけは測定対象外です。
-            </p>
+            <p class="hint">トップページ以外もOK。キャラ紹介、記事、商品ページなど、そのURL自体を測定します。#以降だけ除外します。</p>
 
             <div class="settings-row">
-              <label>
-                計測モード
+              <label class="select-label">測定タイプ
                 <select id="strategySelect">
-                  <option value="desktop" selected>Desktop</option>
-                  <option value="mobile">Mobile</option>
+                  <option value="desktop" selected>PC表示</option>
+                  <option value="mobile">スマホ表示</option>
                 </select>
               </label>
               <label class="checkbox-line">
                 <input type="checkbox" id="forceScan" />
-                発見済みキャッシュを無視して再計測（ENERGY -1）
+                <span>最新データに更新 <b>⚡1消費</b></span>
               </label>
             </div>
 
             <div class="energy-panel">
-              <div>
-                <p class="eyebrow">SCAN ENERGY</p>
-                <strong><span id="energyRemaining">5</span> / 5</strong>
+              <div class="energy-title">
+                <small>今日の探索力</small>
+                <strong><span id="energyRemaining">5</span><em>/ 5</em></strong>
                 <p id="energyResetText">毎日0:00に全回復</p>
               </div>
-              <div class="energy-orbs" id="energyOrbs" aria-label="SCAN ENERGY"></div>
+              <div class="energy-orbs" id="energyOrbs" aria-label="スキャンエナジー"></div>
               <div class="energy-rules">
-                <span>🆕 未発見URL <b>-1</b></span>
-                <span>♻ 発見済みURL <b>0</b></span>
+                <span><b>NEW</b> 未発見URL → ⚡-1</span>
+                <span><b>HIT!</b> 誰かが発見済み → ⚡0</span>
               </div>
             </div>
-            <p class="hint">
-              誰かが24時間以内に同じURLを発見していれば共有キャッシュから召喚され、SCAN ENERGYを消費しません。
-              ENERGYが0でも発見済みURLならカード化できます。
-            </p>
 
             <div id="scanProgress" class="progress hidden">
               <div class="spinner"></div>
               <div>
-                <strong id="scanProgressTitle">PageSpeed計測中...</strong>
-                <p id="scanProgressText">GoogleのLighthouse結果を待っています。</p>
+                <strong id="scanProgressTitle">サイトを測定中...</strong>
+                <p id="scanProgressText">速さ・重さ・画像・コードなどを調べています。</p>
               </div>
             </div>
 
-            <div class="safety-note">
-              <strong>安全・プライバシー方針</strong>
-              <p>
-                URL BATTLERのWorkerは対象ページへ直接アクセスせず、Google PageSpeed Insightsへ計測を依頼します。
-                PageSpeed APIキーは運営側WorkerのSecretに保持し、ユーザーには要求しません。
-                localhost・プライベートIP・認証情報入りURL等は送信前に拒否します。
-              </p>
-            </div>
-          </div>
+            <details class="safety-note">
+              <summary>安全性と測定について</summary>
+              <p>URLバトラーのWorkerは対象ページへ直接アクセスせず、Google PageSpeed Insightsへ測定を依頼します。APIキーは運営側Cloudflare WorkerのSecretに保管します。localhost・プライベートIP・認証情報入りURL等は拒否します。</p>
+            </details>
+          </section>
 
-          <div id="latestCardArea" class="panel showcase">
-            <p class="empty-title">まだカードがありません</p>
-            <p class="muted">URLを入力すると、ここに生成カードが現れます。</p>
-          </div>
+          <section id="latestCardArea" class="panel showcase card-stage">
+            <div class="empty-card">
+              <span>?</span>
+              <b>まだカードがありません</b>
+              <p>強そうなURLを入れてみよう。</p>
+            </div>
+          </section>
         </div>
 
-        <div class="panel compact-panel">
+        <section class="panel ability-guide">
           <div class="panel-head">
-            <div>
-              <p class="eyebrow">HOW IT WORKS</p>
-              <h2>5つの能力</h2>
-            </div>
+            <div><p class="kicker">5 PARAMETERS</p><h2>カードの5能力</h2></div>
+            <span class="small-note">999は超レア</span>
           </div>
           <div class="stat-guide">
-            <div><b>HP</b><span>総転送量・DOM・リクエスト数</span></div>
-            <div><b>ATK</b><span>画像・コンテンツ・ページ物量</span></div>
-            <div><b>DEF</b><span>HTTPS・Best Practices等の公開シグナル</span></div>
-            <div><b>SPD</b><span>Performance / FCP / LCP / TBT</span></div>
-            <div><b>TEC</b><span>JS・CSS・外部リソース・技術複雑度</span></div>
+            <div class="guide-hp"><b>耐久</b><span>ページの重さ・DOM・リクエスト数</span></div>
+            <div class="guide-atk"><b>火力</b><span>画像・コンテンツ量・ページの物量</span></div>
+            <div class="guide-def"><b>守備</b><span>HTTPS・公開Best Practicesなど</span></div>
+            <div class="guide-spd"><b>速さ</b><span>表示速度・LCP・FCP・処理待ち</span></div>
+            <div class="guide-tec"><b>技術</b><span>JS・CSS・外部リソース・複雑さ</span></div>
           </div>
-        </div>
+          <p class="balance-copy">「良いサイト=最強」ではありません。軽いサイトは速く、重いサイトはタフ。画像だらけなら火力、JSだらけなら技術。クセの強さが武器になります。</p>
+        </section>
       </section>
 
       <section id="view-cards" class="view">
-        <div class="panel">
+        <section class="panel">
           <div class="panel-head">
-            <div>
-              <p class="eyebrow">LOCAL COLLECTION</p>
-              <h2>マイカード</h2>
-            </div>
+            <div><p class="kicker">MY DECK</p><h2>お気に入り5枚</h2></div>
             <span class="pill" id="cardsCounter">0 / 5</span>
           </div>
-          <p class="hint">最大5枚。カード名を付けて育てる感覚で保存できます。カード画像とSNS共有文もローカル生成します。</p>
+          <p class="hint">残す5枚を悩むのもゲーム。カード名を付けて、画像やSNSで共有できます。</p>
           <div id="cardsGrid" class="card-grid"></div>
-        </div>
+        </section>
       </section>
 
       <section id="view-battle" class="view">
-        <div class="panel">
+        <section class="panel battle-lab-panel">
           <div class="panel-head">
-            <div>
-              <p class="eyebrow">BATTLE LAB</p>
-              <h2>指定URL同士を戦わせる</h2>
-            </div>
-            <span class="pill">NEWなら最大 ⚡-2</span>
+            <div><p class="kicker">URL VS URL</p><h2>好きなURL同士を戦わせる</h2></div>
+            <span class="pill">未発見なら最大 ⚡-2</span>
           </div>
-          <p class="hint">発見済みURLはENERGY 0。未発見URLだけ1件につきENERGYを1消費します。</p>
-
+          <p class="hint">発見済みURLならエナジー0。バトルは能力差と固有技が見える自動戦闘です。</p>
           <div class="versus-inputs">
-            <div>
-              <label class="field-label" for="battleUrlA">URL A</label>
-              <input id="battleUrlA" class="url-input" inputmode="url" placeholder="https://example.com/page-a" />
-            </div>
+            <div><label class="field-label" for="battleUrlA">1P URL</label><input id="battleUrlA" class="url-input" inputmode="url" placeholder="https://example.com/page-a" /></div>
             <div class="vs-mark">VS</div>
-            <div>
-              <label class="field-label" for="battleUrlB">URL B</label>
-              <input id="battleUrlB" class="url-input" inputmode="url" placeholder="https://example.org/page-b" />
-            </div>
+            <div><label class="field-label" for="battleUrlB">2P URL</label><input id="battleUrlB" class="url-input" inputmode="url" placeholder="https://example.org/page-b" /></div>
           </div>
           <div class="battle-actions">
-            <label>
-              計測モード
-              <select id="battleStrategy">
-                <option value="desktop" selected>Desktop</option>
-                <option value="mobile">Mobile</option>
-              </select>
+            <label class="select-label">測定タイプ
+              <select id="battleStrategy"><option value="desktop" selected>PC表示</option><option value="mobile">スマホ表示</option></select>
             </label>
-            <button id="battleUrlButton" class="primary">計測して BATTLE</button>
+            <button id="battleUrlButton" class="primary big-button">バトル開始!</button>
           </div>
-        </div>
+        </section>
         <div id="battleArena"></div>
       </section>
 
       <section id="view-rush" class="view">
-        <div class="panel">
+        <section class="panel rush-panel">
           <div class="panel-head">
-            <div>
-              <p class="eyebrow">ZERO API MODE</p>
-              <h2>URL RUSH</h2>
-            </div>
-            <span class="pill success">API CALL × 0</span>
+            <div><p class="kicker">URL RUSH</p><h2>お気に入り1枚で連勝チャレンジ</h2></div>
+            <span class="pill success">エナジー消費 0</span>
           </div>
-          <p class="hint">
-            保存カード1枚で、アプリ同梱のNPCサイトカードと連戦します。
-            SCAN ENERGY 0・スキャナー停止中でも遊べます。
-          </p>
+          <p class="hint">保存カードでNPCサイトカードとひたすら連戦。スキャナー停止中でも遊べます。</p>
           <div class="rush-controls">
-            <label>
-              出撃カード
-              <select id="rushCardSelect"></select>
-            </label>
-            <button id="rushStartButton" class="primary">RUSH START</button>
-            <div class="streak">連勝 <strong id="rushStreak">0</strong></div>
+            <label class="select-label">出撃カード<select id="rushCardSelect"></select></label>
+            <button id="rushStartButton" class="primary big-button">連戦スタート!</button>
+            <div class="streak">現在 <strong id="rushStreak">0</strong> 連勝</div>
           </div>
-        </div>
+        </section>
         <div id="rushArena"></div>
       </section>
 
       <section id="view-history" class="view">
-        <div class="panel">
+        <section class="panel">
           <div class="panel-head">
-            <div>
-              <p class="eyebrow">LOCAL BATTLE LOG</p>
-              <h2>戦歴</h2>
-            </div>
-            <button id="clearHistoryButton" class="danger ghost">戦歴を消去</button>
+            <div><p class="kicker">BATTLE RECORD</p><h2>ローカル戦歴</h2></div>
+            <button id="clearHistoryButton" class="danger ghost">戦歴を消す</button>
           </div>
           <div id="historyList" class="history-list"></div>
-        </div>
+        </section>
       </section>
     </main>
 
@@ -223,33 +198,24 @@
     </dialog>
 
     <dialog id="cardNameDialog" class="external-dialog">
+      <span class="dialog-sticker">CARD NAME</span>
       <h3>カード名を変更</h3>
-      <p class="muted">SNS共有画像にもこの名前を使います。</p>
+      <p>共有画像にもこの名前を使います。</p>
       <input id="cardNameInput" class="url-input" maxlength="60" placeholder="例：伝説のキャラ紹介ページ" />
-      <div class="dialog-actions">
-        <button id="cardNameCancel" class="secondary">キャンセル</button>
-        <button id="cardNameSave" class="primary">保存</button>
-      </div>
+      <div class="dialog-actions"><button id="cardNameCancel" class="secondary">やめる</button><button id="cardNameSave" class="primary">保存</button></div>
     </dialog>
 
     <dialog id="externalDialog" class="external-dialog">
+      <span class="dialog-sticker warning">OUTSIDE LINK</span>
       <h3>外部サイトを開きます</h3>
       <code id="externalUrlText"></code>
-      <p>
-        ここから先はURL BATTLERとは別のWebサイトです。
-        URL BATTLERはリンク先の内容・安全性を保証しません。
-      </p>
-      <div class="dialog-actions">
-        <button id="externalCancel" class="secondary">キャンセル</button>
-        <button id="externalOpen" class="primary">新しいタブで開く</button>
-      </div>
+      <p>ここから先はURLバトラーとは別サイトです。リンク先の内容・安全性をURLバトラーが保証するものではありません。</p>
+      <div class="dialog-actions"><button id="externalCancel" class="secondary">やめる</button><button id="externalOpen" class="primary">新しいタブで開く</button></div>
     </dialog>
 
     <footer>
-      <p>
-        Prototype / Cloudflare Worker + PageSpeed Insights API + Lighthouse data. 計測値は推定値で変動します。
-        DEFは脆弱性診断ではなく、公開されたBest Practices等をゲーム用に数値化したものです。
-      </p>
+      <a href="https://yu-zora.com/">YU-ZORA PORTAL</a>
+      <p>PageSpeed Insights / Lighthouseの公開測定値をゲーム用に変換しています。「守備」は脆弱性診断や安全性保証ではありません。測定値は時刻・回線・サイト状態などで変動します。</p>
     </footer>
   </div>
 

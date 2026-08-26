@@ -4,18 +4,21 @@ const CACHE_TTL_SECONDS = 24 * 60 * 60;
 export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
-    const cors = corsHeaders(origin, env.ALLOWED_ORIGIN || "");
+    const allowedOrigins = env.ALLOWED_ORIGINS || env.ALLOWED_ORIGIN || "";
+    const cors = corsHeaders(origin, allowedOrigins);
 
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: cors });
     }
 
     const url = new URL(request.url);
-    if (request.method !== "POST" || url.pathname !== "/scan") {
+    const base = String(env.APP_BASE_PATH || "/games/url-battler").replace(/\/$/, "");
+    const scanPaths = new Set(["/scan", `${base}/api/scan`]);
+    if (request.method !== "POST" || !scanPaths.has(url.pathname)) {
       return json({ ok:false, code:"NOT_FOUND", message:"Not found" }, 404, cors);
     }
 
-    if (!originAllowed(origin, env.ALLOWED_ORIGIN || "")) {
+    if (!originAllowed(origin, allowedOrigins)) {
       return json({ ok:false, code:"ORIGIN_DENIED", message:"Origin denied" }, 403, cors);
     }
 
@@ -98,7 +101,7 @@ export default {
     if (!upstream.ok) {
       const msg = data?.error?.message || `PageSpeed error ${upstream.status}`;
       if (upstream.status === 429 || upstream.status === 403 && /quota|rate|limit/i.test(msg)) {
-        return json({ ok:false, code:"UPSTREAM_LIMIT", message:"Scanner capacity reached" }, 429, cors);
+        return json({ ok:false, code:"UPSTREAM_LIMIT", message:"Scanner capacity reached" }, 429, { ...cors, "Retry-After":"300" });
       }
       if (upstream.status >= 500) {
         return json({ ok:false, code:"UPSTREAM_BUSY", message:"PageSpeed temporarily unavailable" }, 503, cors);

@@ -1,142 +1,129 @@
-# URL BATTLER v0.3
+# URLバトラー v0.4 POP
 
-「未発見URLを探すこと自体がゲーム」になる低コストMVPです。
+URLを入れるとWebページのPageSpeed/Lighthouse測定値からカードを生成し、自動戦闘するブラウザゲームです。
 
-## v0.3の中心ルール
+公開予定URL:
 
-- SCAN ENERGY: 1日5
-- 毎日ローカル時刻0:00に5まで全回復
-- 未発見URLの新規PageSpeed計測: ENERGY -1
-- 誰かが24時間以内に発見済みのURL: ENERGY 0
-- ローカルに24時間キャッシュ済み: ENERGY 0
-- 保存カード / NPC戦 / URL RUSH / 戦歴: ENERGY 0
-- 強制再計測: ENERGY -1
-- マイカード最大5枚
-- カード名を自由に変更
-- カード画像PNGをローカル生成
-- Web Share APIでSNS共有
-- 非対応環境は投稿文コピー + PNG保存
-- 投稿文にはサイト名 / URL / BP / 5能力 / #URLBATTLER / URL BATTLER本体URLを含む
+`https://yu-zora.com/games/url-battler/`
 
-## 構成
+## v0.4 の主な変更
 
-Browser
-  -> Cloudflare Worker
-      -> Workers KV（24時間の共有発見キャッシュ）
-      -> cache miss時だけ PageSpeed Insights API
-          -> 対象サイト
+- UIを日本語中心のポップな「Webカードゲーム」調へ全面変更
+- 5能力を `耐久 / 火力 / 守備 / 速さ / 技術` に変更
+- 999が簡単に出ない新バランス
+  - 通常域はおおむね120〜920
+  - 950超はかなり極端なページだけ
+  - 999は超軽量・超高速などの極端条件を満たした場合のみ狙える
+- v0.3で保存したカードは、raw metricsが残っていれば自動的にv0.4能力へ再計算
+- バトルを全面改修
+  - HPゲージ
+  - 攻撃モーション / 被弾シェイク / ダメージポップ
+  - 固有技のカットイン
+  - 狭い乱数幅で能力差を重視
+  - バトル後に「勝因」を3つ表示
+  - 詳細ログでは攻撃値と守備値の根拠を確認可能
+- カード共有画像 / 対戦結果画像もポップデザインへ変更
+- ハッシュタグを `#URLバトラー` に統一
+- YU-ZORA PORTALへの導線を追加
+- Cloudflare Worker + Static Assetsを1つのWorkerに統合可能な構成へ変更
+
+## 本番構成
+
+```text
+https://yu-zora.com/games/url-battler/
+  ├─ Static Assets
+  │    ├─ index.html
+  │    ├─ styles.css
+  │    ├─ app.js
+  │    └─ config.js
+  │
+  └─ Worker API
+       └─ /games/url-battler/api/scan
+            ├─ Workers KV（24時間共有発見キャッシュ）
+            └─ PageSpeed Insights API
+```
 
 Worker自身は対象サイトへ直接アクセスしません。
 
-PageSpeed APIキーはユーザーに要求せず、Cloudflare Worker Secretとして運営側が保持します。
+PageSpeed APIキーは `PAGESPEED_API_KEY` SecretとしてCloudflareに保持します。
 
-## 共有キャッシュ
+## 既存環境からの移行
 
-WorkerはPageSpeedの巨大JSONを保存せず、ゲームに必要な計測指標だけを小さいJSONへ圧縮してKVへ保存します。
+既存Worker名 `url-battler-scan` と既存KVをそのまま使う構成です。
 
-同一URL + 同一strategyが24時間以内にKVへ存在すれば `cacheStatus: HIT`。
-フロントはSCAN ENERGYを消費しません。
+設定の正本はルートの `wrangler.jsonc` です。
 
-KVに存在しなければ `cacheStatus: MISS`。
-PageSpeed計測が成功してからENERGYを1消費します。
+既存のPageSpeed Secretは通常そのまま残ります。デプロイ後に `NO_API_KEY` が出た場合だけ、再度以下を実行してください。
 
-ENERGY 0のユーザーは `allowFresh:false` でWorkerへ問い合わせるため、発見済みURLだけ召喚できます。
-未発見ならPageSpeedを呼ばずに `409 CACHE_MISS` を返します。
-
-## セットアップ
-
-### 1. Cloudflare KVを作る
-
-Workers KV namespaceを1つ作成し、`worker/wrangler.toml.example` を `wrangler.toml` にコピーしてIDを設定します。
-
-### 2. PageSpeed Insights APIキーを用意
-
-運営者がGoogle CloudでPageSpeed Insights API用キーを作成します。
-
-### 3. APIキーをWorker Secretへ保存
-
-```bash
-cd worker
-npx wrangler secret put PAGESPEED_API_KEY
+```powershell
+npx.cmd wrangler secret put PAGESPEED_API_KEY
 ```
 
-ソースやwrangler.tomlへキーを直接書かないでください。
+## Windows: ローカルUIだけ素早く確認
 
-### 4. Workerをデプロイ
+ルートフォルダで:
 
-```bash
-npx wrangler deploy
+```powershell
+py -m http.server 8000
 ```
 
-### 5. フロント設定
+ブラウザ:
 
-`config.js`:
+`http://localhost:8000/`
 
-```js
-window.URL_BATTLER_CONFIG = {
-  scanEndpoint: "https://YOUR-WORKER.workers.dev/scan",
-  publicAppUrl: "https://YOUR-URL-BATTLER.example/"
-};
+このポートで開いた時だけ `config.js` が既存の `workers.dev/scan` を利用します。
+
+## Windows: 本番と同じパス構成で確認
+
+```powershell
+npm.cmd install
+npm.cmd run check
+npm.cmd run build
+npx.cmd wrangler dev
 ```
 
-### 6. 静的フロントを公開
+ブラウザ:
 
-`index.html / styles.css / app.js / config.js` はCloudflare PagesやGitHub Pages等へ静的配置できます。
+`http://localhost:8787/games/url-battler/`
 
-## ローカルフロント起動
+## Cloudflareへデプロイ
 
-```bash
-python -m http.server 8000
+```powershell
+npm.cmd run build
+npx.cmd wrangler deploy
 ```
 
-`http://localhost:8000`
+`wrangler.jsonc` に以下を設定済みです。
 
-Worker側 `ALLOWED_ORIGIN` に localhost も許可したい場合はカンマ区切りにしてください。
+- Worker: `url-battler-scan`
+- Route: `yu-zora.com/games/url-battler*`
+- Zone: `yu-zora.com`
+- Static Assets: `./dist`
+- API: `/games/url-battler/api/scan`
+- KV binding: `SCAN_CACHE`
 
-## SNS共有
+このRouteは `yu-zora.com` 全体ではなく、`/games/url-battler` 配下だけを担当します。
 
-マイカードの「SNS共有」から1200x630のPNGを生成します。
+## SCAN ENERGY
 
-共有文の形式:
+- 1日5
+- ローカル時刻0:00で回復
+- 未発見URL: -1
+- 共有KVに24時間以内の発見データあり: 0
+- 自分の24時間キャッシュ: 0
+- 最新データへ強制更新: -1
+- 保存カード / NPC戦 / 連戦: 0
 
-```text
-強URL発見⚡ カード名
-BP 842｜HP ... ATK ... DEF ... SPD ... TEC ...
-https://target.example/character/hero
-#URLBATTLER
-https://url-battler.example/
-```
+将来のRewarded Ad用に `rewardUsed` フラグは保持しています。
 
-Xの通常投稿を意識し、URLを23文字として数える簡易weighted-length推定で270以内を目標にカード名を自動短縮します。
+## 安全方針
 
-Web Share APIが画像共有に対応している端末では画像+本文を共有します。
-非対応時は本文をコピーしPNGを保存します。
+- http / httpsのみ
+- 認証情報入りURL拒否
+- localhost / .local / .internal拒否
+- private / loopback / link-local系IP直指定拒否
+- Workerは対象サイトを直接fetchしない
+- カードから元サイトへ開く前に警告表示
+- 「守備」は脆弱性診断ではなく、Lighthouseの公開Best Practices等をゲーム値へ変換したもの
 
-## リワード広告の将来拡張
-
-`energy` stateには `rewardUsed` を予約済みです。
-
-将来は「広告クリック報酬」ではなく、正式なRewarded Adの完了イベントを受けて
-1日1回だけENERGYを5まで全回復する設計を想定します。
-
-## 安全設計
-
-フロントとWorkerの両方で以下を拒否します。
-
-- http/https以外
-- 認証情報入りURL
-- localhost
-- .local / .internal
-- private / loopback / link-local系IP直指定
-
-カードから元サイトを開くときは警告ダイアログを表示します。
-
-DEFは脆弱性診断ではありません。
-Lighthouseの公開Best Practices等をゲーム能力へ変換したものです。
-
-## 注意
-
-- Workers KVはグローバルな共有キャッシュですが、更新反映は即時完全同期ではありません。
-- 24時間を超えたURLは再発見扱いになり、fresh scan成功時にENERGYを1消費します。
-- 「NEW DISCOVERY」はこのMVPでは永続的な世界初発見記録ではなく、24時間共有キャッシュ上の新規発見を意味します。
-- 本当の「世界初発見者」を残すなら、後で永続DBを追加します。
+詳しいバトル設計は `docs/BATTLE_DESIGN.md`、公開前確認は `docs/QA_CHECKLIST.md` を参照してください。

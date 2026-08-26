@@ -1,0 +1,15 @@
+{
+  "name": "url-battler",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy",
+    "check": "node --check app.js && node --check worker/worker.js && node scripts/smoke-check.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.126.0"
+  }
+}

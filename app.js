@@ -7,6 +7,8 @@
   const DAILY_ENERGY_MAX = 5;
   const MAX_CARDS = 5;
   const MAX_HISTORY = 100;
+  const BALANCE_VERSION = 4;
+  let battlePlaybackId = 0;
 
   const LS = {
     cards: "urlbattler.cards.v2",
@@ -38,36 +40,36 @@
   }
 
   const SKILL_DEFS = [
-    { id:"speed-god", name:"神速", desc:"初手の行動順を強制的に最速化", priority: 100 },
-    { id:"ancient-html", name:"古代HTML", desc:"SPD強化。軽量構成の奥義", priority: 95 },
-    { id:"heavy-fort", name:"重装要塞", desc:"最大HP増加、SPD低下", priority: 80 },
-    { id:"image-barrage", name:"画像弾幕", desc:"通常攻撃が時々2連撃", priority: 75 },
-    { id:"magic-overload", name:"魔術過積載", desc:"TEC攻撃強化、SPD低下", priority: 78 },
-    { id:"void", name:"無の境地", desc:"TEC攻撃への耐性", priority: 83 },
-    { id:"triple-barrier", name:"三重結界", desc:"被ダメージ軽減", priority: 92 },
-    { id:"third-party", name:"第三者召喚", desc:"開幕ランダム能力強化", priority: 70 },
-    { id:"dom-maze", name:"DOM迷宮", desc:"DEF強化", priority: 65 },
-    { id:"iron-wall", name:"鉄壁", desc:"DEF強化", priority: 68 },
-    { id:"css-armor", name:"CSS甲冑", desc:"DEFを少し強化", priority: 55 },
-    { id:"giant-life", name:"巨大生命", desc:"最大HPを大幅強化", priority: 74 },
-    { id:"clean-page", name:"静寂のページ", desc:"少リクエストで回避率上昇", priority: 60 },
-    { id:"unstable", name:"揺らぐ大地", desc:"CLS由来のハイリスク攻撃", priority: 40 }
+    { id:"speed-god", name:"神速", desc:"初手を奪い、最初の一撃も強化", priority:100 },
+    { id:"ancient-html", name:"古代HTML", desc:"軽量構成で速さアップ", priority:95 },
+    { id:"heavy-fort", name:"重装要塞", desc:"耐久アップ・速さダウン", priority:80 },
+    { id:"image-barrage", name:"画像弾幕", desc:"画像の物量で追加攻撃", priority:75 },
+    { id:"magic-overload", name:"魔術過積載", desc:"技術攻撃アップ・速さダウン", priority:78 },
+    { id:"void", name:"無の境地", desc:"技術攻撃のダメージを軽減", priority:83 },
+    { id:"triple-barrier", name:"三重結界", desc:"受けるダメージを軽減", priority:92 },
+    { id:"third-party", name:"第三者召喚", desc:"開幕に能力ひとつを強化", priority:70 },
+    { id:"dom-maze", name:"DOM迷宮", desc:"複雑な構造で守備アップ", priority:65 },
+    { id:"iron-wall", name:"鉄壁", desc:"公開設定の堅さで守備アップ", priority:68 },
+    { id:"css-armor", name:"CSS甲冑", desc:"CSSの厚みで守備アップ", priority:55 },
+    { id:"giant-life", name:"巨大生命", desc:"超重量ページで最大HPアップ", priority:74 },
+    { id:"clean-page", name:"静寂のページ", desc:"少リクエストで攻撃を回避", priority:60 },
+    { id:"unstable", name:"揺らぐ大地", desc:"不安定さを高威力へ変換", priority:40 }
   ];
   function skillByName(name) { return SKILL_DEFS.find(s => s.name === name); }
 
   const NPCS = [
-    npc("THE EMPTY PAGE", "https://npc.invalid/empty", [180, 170, 310, 970, 120], ["神速", "無の境地"], "STATIC"),
-    npc("MEGA PORTAL", "https://npc.invalid/portal", [930, 820, 690, 260, 860], ["重装要塞", "第三者召喚"], "PORTAL"),
-    npc("IMAGE FORTRESS", "https://npc.invalid/gallery", [760, 910, 540, 330, 640], ["画像弾幕", "重装要塞"], "MEDIA"),
-    npc("JAVASCRIPT TOWER", "https://npc.invalid/app", [690, 620, 620, 410, 980], ["魔術過積載", "第三者召喚"], "APP"),
-    npc("TEXT ARCHIVE", "https://npc.invalid/archive", [810, 760, 720, 610, 260], ["DOM迷宮", "鉄壁"], "ARCHIVE"),
-    npc("CSS KNIGHT", "https://npc.invalid/style", [620, 570, 900, 590, 740], ["CSS甲冑", "鉄壁"], "DESIGN"),
-    npc("OLD WEB MASTER", "https://npc.invalid/oldweb", [310, 330, 610, 990, 150], ["古代HTML", "神速", "無の境地"], "LEGACY"),
-    npc("AD SUMMONER", "https://npc.invalid/ads", [740, 660, 430, 280, 960], ["第三者召喚", "魔術過積載"], "SUMMONER"),
-    npc("SECURE GATE", "https://npc.invalid/gate", [570, 470, 980, 660, 520], ["三重結界", "鉄壁"], "GUARD"),
-    npc("MEDIA TITAN", "https://npc.invalid/media", [990, 920, 510, 180, 710], ["巨大生命", "画像弾幕"], "TITAN"),
-    npc("BALANCED CLOUD", "https://npc.invalid/cloud", [710, 720, 730, 740, 750], ["鉄壁"], "CLOUD"),
-    npc("DOM LABYRINTH", "https://npc.invalid/dom", [880, 780, 820, 290, 730], ["DOM迷宮", "重装要塞"], "MAZE")
+    npc("からっぽページ", "https://npc.invalid/empty", [210,180,300,930,150], ["神速","無の境地"], "STATIC"),
+    npc("メガポータル", "https://npc.invalid/portal", [865,790,690,300,835], ["重装要塞","第三者召喚"], "PORTAL"),
+    npc("画像の城", "https://npc.invalid/gallery", [720,875,510,360,610], ["画像弾幕","重装要塞"], "MEDIA"),
+    npc("JSタワー", "https://npc.invalid/app", [650,590,600,430,925], ["魔術過積載","第三者召喚"], "APP"),
+    npc("文章アーカイブ", "https://npc.invalid/archive", [780,735,700,620,280], ["DOM迷宮","鉄壁"], "ARCHIVE"),
+    npc("CSSナイト", "https://npc.invalid/style", [600,540,850,580,710], ["CSS甲冑","鉄壁"], "DESIGN"),
+    npc("古代ウェブマスター", "https://npc.invalid/oldweb", [300,310,590,965,145], ["古代HTML","神速","無の境地"], "LEGACY"),
+    npc("広告サモナー", "https://npc.invalid/ads", [710,630,420,310,900], ["第三者召喚","魔術過積載"], "SUMMONER"),
+    npc("セキュアゲート", "https://npc.invalid/gate", [560,460,920,650,500], ["三重結界","鉄壁"], "GUARD"),
+    npc("メディアタイタン", "https://npc.invalid/media", [935,880,500,220,680], ["巨大生命","画像弾幕"], "TITAN"),
+    npc("バランスクラウド", "https://npc.invalid/cloud", [690,700,710,720,730], ["鉄壁"], "CLOUD"),
+    npc("DOMラビリンス", "https://npc.invalid/dom", [835,750,790,330,705], ["DOM迷宮","重装要塞"], "MAZE")
   ];
 
   function npc(name, url, s, skills, className) {
@@ -79,7 +81,7 @@
       bp: Math.round(s.reduce((a,b)=>a+b,0)/5),
       skills: skills.map(skillByName).filter(Boolean),
       metrics: { isNpc: true },
-      source: "npc"
+      source: "npc", balanceVersion: BALANCE_VERSION
     };
   }
 
@@ -91,7 +93,37 @@
   function saveJson(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
   }
-  function getCards() { return loadJson(LS.cards, []); }
+  function getCards() {
+    const cards = loadJson(LS.cards, []);
+    let changed = false;
+    const migrated = cards.map(card => {
+      if (card?.metrics && !card.metrics.isNpc && card.balanceVersion !== BALANCE_VERSION) {
+        changed = true;
+        return rebalanceCard(card);
+      }
+      return card;
+    });
+    if (changed) saveJson(LS.cards, migrated);
+    return migrated;
+  }
+  function rebalanceCard(card) {
+    const stats = makeStats(card.metrics || {});
+    const skills = chooseSkills(card.metrics || {}, stats);
+    return {
+      ...card,
+      stats,
+      skills,
+      className: chooseClass(card.metrics || {}, stats),
+      bp: battlePower(stats),
+      balanceVersion: BALANCE_VERSION
+    };
+  }
+  function battlePower(stats) {
+    const values = [stats.hp, stats.atk, stats.def, stats.spd, stats.tec];
+    const avg = values.reduce((a,b)=>a+b,0) / values.length;
+    const peak = Math.max(...values);
+    return Math.round(avg * .88 + peak * .12);
+  }
   function setCards(cards) { saveJson(LS.cards, cards.slice(0, MAX_CARDS)); renderAll(); }
   function getHistory() { return loadJson(LS.history, []); }
   function addHistory(record) {
@@ -203,8 +235,14 @@
     const cache = getCache();
 
     if (!force && cache[key] && now() - cache[key].cachedAt < CACHE_TTL) {
-      setApiState("LOCAL HIT");
-      return { ...cache[key].card, source: "local-cache", discoveryStatus: "LOCAL" };
+      setApiState("発見済み");
+      let cachedCard = cache[key].card;
+      if (cachedCard?.metrics && !cachedCard.metrics.isNpc && cachedCard.balanceVersion !== BALANCE_VERSION) {
+        cachedCard = rebalanceCard(cachedCard);
+        cache[key].card = cachedCard;
+        setCache(cache);
+      }
+      return { ...cachedCard, source: "local-cache", discoveryStatus: "LOCAL" };
     }
 
     if (!SCAN_ENDPOINT) {
@@ -217,13 +255,13 @@
 
     const energy = getEnergyState();
     if (force && energy.remaining <= 0) {
-      throw new AppError("ENERGY_EMPTY", "再計測にはSCAN ENERGYが1必要です。発見済みURLの通常召喚はENERGY 0でも試せます。");
+      throw new AppError("ENERGY_EMPTY", "最新データへの更新にはスキャンエナジーが1必要です。発見済みURLの通常召喚はエナジー0でも試せます。");
     }
 
-    setApiState("SCANNING");
+    setApiState("測定中");
     showProgress(true, "サイト召喚中...", energy.remaining > 0
-      ? "発見済みならENERGY 0、未発見なら成功時にENERGYを1消費します。"
-      : "ENERGY 0のため、発見済み共有キャッシュだけを探します。");
+      ? "発見済みならエナジー0、未発見なら測定成功時に1消費します。"
+      : "エナジー0のため、みんなの発見済みキャッシュだけを探します。");
 
     let response, payload;
     try {
@@ -242,7 +280,7 @@
       const text = await response.text();
       try { payload = JSON.parse(text); } catch { payload = { message: text }; }
     } catch (err) {
-      setApiState("NETWORK");
+      setApiState("通信失敗");
       throw new AppError("NETWORK", "URL BATTLERスキャナーへ接続できませんでした。保存済みカードやURL RUSHは遊べます。", err);
     } finally {
       showProgress(false);
@@ -258,7 +296,7 @@
     const cacheStatus = String(payload.cacheStatus || "MISS").toUpperCase();
     if (cacheStatus !== "HIT") {
       if (!consumeEnergy(1)) {
-        throw new AppError("ENERGY_RACE", "SCAN ENERGYの状態が変わったためカード生成を中止しました。");
+        throw new AppError("ENERGY_RACE", "スキャンエナジーの状態が変わったためカード生成を中止しました。");
       }
     }
 
@@ -267,7 +305,7 @@
     card.discoveryStatus = cacheStatus === "HIT" ? "DISCOVERED" : "NEW";
     cache[key] = { cachedAt: now(), card };
     setCache(cache);
-    setApiState(cacheStatus === "HIT" ? "CACHE HIT" : "NEW SCAN");
+    setApiState(cacheStatus === "HIT" ? "発見済み" : "新発見");
     return card;
   }
 
@@ -276,32 +314,32 @@
     const message = String(payload.message || "");
 
     if (status === 409 && code === "CACHE_MISS") {
-      setApiState("ENERGY 0");
+      setApiState("エナジー0");
       return new AppError(
         "ENERGY_EMPTY",
-        "このURLはまだ共有キャッシュにありません。今日のSCAN ENERGYを使い切っています。保存済みカード・URL RUSHはそのまま遊べます。"
+        "このURLはまだ誰にも発見されていません。今日のスキャンエナジーを使い切っています。保存カード・連戦モードはそのまま遊べます。"
       );
     }
     if (status === 429 || code === "SCANNER_LIMIT" || code === "UPSTREAM_LIMIT") {
-      setApiState("CHARGING");
+      setApiState("混雑中");
       return new AppError(
         "SCANNER_LIMIT",
         "スキャナーが混み合っているため、新しいURLの計測を現在受け付けられません。発見済みカード・保存カード・URL RUSHは遊べます。"
       );
     }
     if (status === 403) {
-      setApiState("DENIED");
+      setApiState("利用不可");
       return new AppError("DENIED", "このゲームからスキャナーを利用できません。公開設定を確認してください。");
     }
     if (status === 400 || status === 422) {
-      setApiState("INVALID");
+      setApiState("測定不可");
       return new AppError("SCAN_REJECTED", message || "このURLは計測できませんでした。");
     }
     if (status >= 500) {
-      setApiState("BUSY");
-      return new AppError("SERVICE", "スキャナーまたはPageSpeed側が一時的に利用できません。ローカル対戦は遊べます。");
+      setApiState("混雑中");
+      return new AppError("SERVICE", "スキャナーが一時的に利用できません。保存カードでの対戦は遊べます。");
     }
-    setApiState("ERROR");
+    setApiState("エラー");
     return new AppError("API", message || `スキャナーエラー (${status})`);
   }
 
@@ -314,7 +352,7 @@
     const u = new URL(requestedUrl);
     const domain = u.hostname;
     const path = `${u.pathname}${u.search}` || "/";
-    const bp = Math.round((stats.hp + stats.atk + stats.def + stats.spd + stats.tec) / 5);
+    const bp = battlePower(stats);
 
     return {
       id: `card-${hashString(`${strategy}|${requestedUrl}`)}`,
@@ -330,7 +368,8 @@
       bp,
       skills,
       metrics,
-      source: "new-scan"
+      source: "new-scan",
+      balanceVersion: BALANCE_VERSION
     };
   }
 
@@ -394,7 +433,7 @@
   }
 
   function logNorm(x, scale) {
-    return clamp(Math.log1p(Math.max(0, x)) / Math.log1p(scale), 0, 1);
+    return clamp(Math.log1p(Math.max(0, Number(x) || 0)) / Math.log1p(scale), 0, 1);
   }
   function fastScore(ms, good, bad) {
     if (!Number.isFinite(ms)) return null;
@@ -407,57 +446,88 @@
     }
     return weight ? sum / weight : fallback;
   }
-  function stat(n) { return Math.round(100 + 899 * clamp(n,0,1)); }
+  // 通常域はおおむね120〜920。950超は生データがかなり極端な場合だけ。
+  function softStat(n) {
+    const x = clamp(Number(n) || 0, 0, 1);
+    return Math.round(120 + 800 * Math.pow(x, .92));
+  }
+  function legendaryBoost(base, quality) {
+    if (!Number.isFinite(quality) || quality <= 0) return base;
+    return Math.min(999, Math.round(base + 79 * clamp(quality, 0, 1)));
+  }
 
   function makeStats(m) {
     const hpN = weightedAvailable([
-      [logNorm(m.totalBytes, 12 * 1024 * 1024), .48],
-      [logNorm(m.domNodes, 5000), .25],
-      [logNorm(m.requestCount, 250), .27]
-    ]);
+      [logNorm(m.totalBytes, 18 * 1024 * 1024), .48],
+      [logNorm(m.domNodes, 6500), .24],
+      [logNorm(m.requestCount, 320), .28]
+    ], .34);
     const atkN = weightedAvailable([
-      [logNorm(m.imageBytes, 8 * 1024 * 1024), .36],
-      [logNorm(m.imageCount, 80), .18],
-      [logNorm(m.documentBytes, 600 * 1024), .14],
-      [logNorm(m.requestCount, 220), .14],
-      [logNorm(m.domNodes, 4500), .18]
-    ]);
+      [logNorm(m.imageBytes, 12 * 1024 * 1024), .34],
+      [logNorm(m.imageCount, 120), .17],
+      [logNorm(m.documentBytes, 900 * 1024), .13],
+      [logNorm(m.requestCount, 300), .16],
+      [logNorm(m.domNodes, 6000), .20]
+    ], .32);
 
-    const guardSignals = [
-      [m.best !== null ? m.best / 100 : null, .40],
-      [m.isHttps, .22],
+    const defN = weightedAvailable([
+      [m.best !== null && m.best !== undefined ? m.best / 100 : null, .48],
+      [m.isHttps, .20],
       [m.httpsAudit, .10],
-      [m.hsts, .12],
-      [m.csp, .10],
-      [m.noVuln, .06]
-    ];
-    const defN = weightedAvailable(guardSignals, .45);
+      [m.hsts, .09],
+      [m.csp, .08],
+      [m.noVuln, .05]
+    ], .43);
 
     const spdN = weightedAvailable([
-      [m.perf !== null ? m.perf / 100 : null, .42],
-      [fastScore(m.fcp, 700, 4500), .16],
-      [fastScore(m.lcp, 1200, 6500), .22],
-      [fastScore(m.tbt, 80, 1600), .12],
-      [fastScore(m.si, 1200, 7000), .08]
-    ], .45);
+      [m.perf !== null && m.perf !== undefined ? m.perf / 100 : null, .36],
+      [fastScore(m.fcp, 450, 4300), .18],
+      [fastScore(m.lcp, 900, 6000), .24],
+      [fastScore(m.tbt, 60, 1500), .13],
+      [fastScore(m.si, 900, 6500), .09]
+    ], .42);
 
     const tecN = weightedAvailable([
-      [logNorm(m.scriptBytes, 3 * 1024 * 1024), .44],
-      [logNorm(m.cssBytes, 800 * 1024), .18],
-      [logNorm(m.thirdPartyDomains, 25), .20],
-      [logNorm(m.resourceTypes, 9), .08],
-      [logNorm(m.requestCount, 220), .10]
-    ]);
+      [logNorm(m.scriptBytes, 4.5 * 1024 * 1024), .43],
+      [logNorm(m.cssBytes, 1200 * 1024), .17],
+      [logNorm(m.thirdPartyDomains, 32), .20],
+      [logNorm(m.resourceTypes, 10), .08],
+      [logNorm(m.requestCount, 300), .12]
+    ], .30);
 
-    return { hp: stat(hpN), atk: stat(atkN), def: stat(defN), spd: stat(spdN), tec: stat(tecN) };
+    let hp = softStat(hpN);
+    let atk = softStat(atkN);
+    let def = softStat(defN);
+    let spd = softStat(spdN);
+    let tec = softStat(tecN);
+
+    hp = legendaryBoost(hp, Math.min(
+      logNorm(Math.max(0, (m.totalBytes || 0) - 18*1024*1024), 45*1024*1024),
+      logNorm(Math.max(0, (m.requestCount || 0) - 320), 500)
+    ));
+    atk = legendaryBoost(atk, Math.min(
+      logNorm(Math.max(0, (m.imageBytes || 0) - 12*1024*1024), 30*1024*1024),
+      logNorm(Math.max(0, (m.imageCount || 0) - 120), 250)
+    ));
+    const perfectGuard = (m.best === 100 ? .25 : 0) + (m.isHttps ? .15 : 0) + (m.hsts === 1 ? .2 : 0) + (m.csp === 1 ? .2 : 0) + (m.noVuln === 1 ? .2 : 0);
+    def = legendaryBoost(def, perfectGuard >= .95 ? .55 : 0);
+    const speedLegend = (m.perf === 100 && (m.lcp ?? 99999) < 350 && (m.fcp ?? 99999) < 250 && (m.tbt ?? 99999) <= 10)
+      ? clamp((350 - (m.lcp || 350)) / 300 + .25, .25, 1) : 0;
+    spd = legendaryBoost(spd, speedLegend);
+    tec = legendaryBoost(tec, Math.min(
+      logNorm(Math.max(0, (m.scriptBytes || 0) - 4.5*1024*1024), 10*1024*1024),
+      logNorm(Math.max(0, (m.thirdPartyDomains || 0) - 32), 60)
+    ));
+
+    return { hp, atk, def, spd, tec };
   }
 
   function chooseSkills(m, s) {
     const found = [];
     const add = (name, cond) => { if (cond) { const sk = skillByName(name); if (sk) found.push(sk); } };
 
-    add("神速", s.spd >= 850 || (m.perf >= 92 && (m.lcp || 99999) < 1800));
-    add("古代HTML", m.scriptBytes < 60*1024 && m.cssBytes < 120*1024 && m.totalBytes < 700*1024 && s.spd >= 720);
+    add("神速", s.spd >= 870 || (m.perf >= 95 && (m.lcp || 99999) < 1400));
+    add("古代HTML", m.scriptBytes < 70*1024 && m.cssBytes < 140*1024 && m.totalBytes < 800*1024 && s.spd >= 760);
     add("重装要塞", m.totalBytes >= 4*1024*1024);
     add("画像弾幕", m.imageCount >= 30 || m.imageBytes >= 3*1024*1024);
     add("魔術過積載", m.scriptBytes >= 1500*1024);
@@ -465,7 +535,7 @@
     add("三重結界", m.isHttps && m.hsts === 1 && m.csp === 1);
     add("第三者召喚", m.thirdPartyDomains >= 10);
     add("DOM迷宮", m.domNodes >= 1400);
-    add("鉄壁", m.isHttps && (m.best ?? 0) >= 90);
+    add("鉄壁", m.isHttps && (m.best ?? 0) >= 94);
     add("CSS甲冑", m.cssBytes >= 450*1024);
     add("巨大生命", m.totalBytes >= 8*1024*1024);
     add("静寂のページ", m.requestCount > 0 && m.requestCount <= 10);
@@ -484,6 +554,16 @@
     return "WEB";
   }
 
+  const CLASS_LABELS = {
+    STATIC:"軽量型", GUARD:"堅牢型", APP:"技術型", MEDIA:"画像型", TANK:"重量型", PORTAL:"複雑型",
+    ARCHIVE:"文章型", DESIGN:"装飾型", LEGACY:"古代型", SUMMONER:"召喚型", TITAN:"超重量型", CLOUD:"万能型", MAZE:"迷宮型", WEB:"万能型"
+  };
+  const CLASS_SIGILS = { STATIC:"速", GUARD:"守", APP:"技", MEDIA:"画", TANK:"重", PORTAL:"網", ARCHIVE:"文", DESIGN:"飾", LEGACY:"古", SUMMONER:"召", TITAN:"巨", CLOUD:"雲", MAZE:"迷", WEB:"網" };
+  function classLabel(cardOrName) {
+    const key = typeof cardOrName === "string" ? cardOrName : cardOrName?.className;
+    return CLASS_LABELS[key] || "ウェブ型";
+  }
+  function classSigil(card) { return CLASS_SIGILS[card?.className] || "網"; }
   function saveCard(card) {
     const cards = getCards();
     const same = cards.findIndex(c => c.id === card.id || (c.url === card.url && c.strategy === card.strategy));
@@ -556,10 +636,10 @@
     const path = card.path || (() => { try { const u = new URL(card.url); return u.pathname + u.search; } catch { return "/"; } })();
     const date = card.capturedAt ? new Date(card.capturedAt).toLocaleString("ja-JP", {month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}) : "NPC";
     const source =
-      card.source === "local-cache" ? "LOCAL CACHE" :
-      card.source === "shared-cache" ? "DISCOVERED" :
-      card.source === "new-scan" ? "NEW DISCOVERY" :
-      card.source === "npc" ? "NPC" : "SCAN";
+      card.source === "local-cache" ? "自分の発見済み" :
+      card.source === "shared-cache" ? "みんなの発見済み" :
+      card.source === "new-scan" ? "新発見" :
+      card.source === "npc" ? "NPC" : "測定";
     return `
       <article class="site-card" style="--cardA:${a};--cardB:${b}">
         <div class="card-top">
@@ -568,22 +648,22 @@
             <div class="card-domain">${esc(card.domain)}</div>
             <div class="card-path">${esc(path)}</div>
           </div>
-          <div class="class-badge">${esc(card.className)}</div>
+          <div class="class-badge">${esc(classLabel(card))}</div>
         </div>
-        <div class="card-bp"><small>BATTLE POWER</small><strong>${fmt(card.bp)}</strong></div>
+        <div class="card-bp"><small>戦闘力</small><strong>${fmt(card.bp)}</strong></div>
         <div class="stats">
-          ${statBox("HP",card.stats.hp)}
-          ${statBox("ATK",card.stats.atk)}
-          ${statBox("DEF",card.stats.def)}
-          ${statBox("SPD",card.stats.spd)}
-          ${statBox("TEC",card.stats.tec)}
+          ${statBox("耐久",card.stats.hp)}
+          ${statBox("火力",card.stats.atk)}
+          ${statBox("守備",card.stats.def)}
+          ${statBox("速さ",card.stats.spd)}
+          ${statBox("技術",card.stats.tec)}
         </div>
         <div class="skills">
-          ${(card.skills?.length ? card.skills : [{name:"ノーマル",desc:"固有スキルなし"}]).map(s=>`
+          ${(card.skills?.length ? card.skills : [{name:"ノーマル",desc:"目立った固有技なし"}]).map(s=>`
             <div class="skill"><strong>${esc(s.name)}</strong><span>${esc(s.desc)}</span></div>
           `).join("")}
         </div>
-        <div class="card-meta"><span>${esc(card.strategy || "desktop")}</span><span>${source} / ${date}</span></div>
+        <div class="card-meta"><span>${card.strategy === "mobile" ? "スマホ測定" : "PC測定"}</span><span>${source} / ${date}</span></div>
       </article>`;
   }
   function statBox(name, value) { return `<div class="statbox"><small>${name}</small><strong>${fmt(value)}</strong></div>`; }
@@ -595,21 +675,14 @@
     const m = card.metrics || {};
     if (m.isNpc) return "";
     return `
-      <div class="safety-note">
-        <strong>SCAN DATA</strong>
+      <details class="scan-details">
+        <summary>このカードの測定データを見る</summary>
         <p>
-          Performance ${m.perf ?? "—"} / Best Practices ${m.best ?? "—"} /
-          転送 ${fmtBytes(m.totalBytes)} / ${fmt(m.requestCount)} requests /
-          Image ${fmt(m.imageCount)} (${fmtBytes(m.imageBytes)}) /
-          JS ${fmtBytes(m.scriptBytes)} / CSS ${fmtBytes(m.cssBytes)} /
-          3rd-party hosts ${fmt(m.thirdPartyDomains)} /
-          DOM ${m.domNodes ? fmt(m.domNodes) : "n/a"}<br>
-          FCP ${m.fcp ? Math.round(m.fcp)+"ms" : "n/a"} /
-          LCP ${m.lcp ? Math.round(m.lcp)+"ms" : "n/a"} /
-          TBT ${m.tbt != null ? Math.round(m.tbt)+"ms" : "n/a"} /
-          Lighthouse ${esc(m.lighthouseVersion || "?")}
+          Performance ${m.perf ?? "—"} / Best Practices ${m.best ?? "—"} / 転送 ${fmtBytes(m.totalBytes)} / ${fmt(m.requestCount)}リクエスト<br>
+          画像 ${fmt(m.imageCount)}枚 (${fmtBytes(m.imageBytes)}) / JS ${fmtBytes(m.scriptBytes)} / CSS ${fmtBytes(m.cssBytes)} / 外部ホスト ${fmt(m.thirdPartyDomains)} / DOM ${m.domNodes ? fmt(m.domNodes) : "n/a"}<br>
+          FCP ${m.fcp ? Math.round(m.fcp)+"ms" : "n/a"} / LCP ${m.lcp ? Math.round(m.lcp)+"ms" : "n/a"} / TBT ${m.tbt != null ? Math.round(m.tbt)+"ms" : "n/a"} / Lighthouse ${esc(m.lighthouseVersion || "?")}
         </p>
-      </div>`;
+      </details>`;
   }
 
   function renderLatest(card) {
@@ -617,23 +690,23 @@
     area.classList.remove("showcase");
     const discovery =
       card.discoveryStatus === "NEW"
-        ? `<div class="discovery-banner new">🆕 NEW DISCOVERY — SCAN ENERGY -1</div>`
+        ? `<div class="discovery-banner new">★ 新発見! スキャンエナジー -1</div>`
         : card.discoveryStatus === "DISCOVERED"
-          ? `<div class="discovery-banner">♻ DISCOVERED CARD — 共有キャッシュから召喚 / ENERGY 0</div>`
-          : `<div class="discovery-banner">💾 LOCAL CARD — ENERGY 0</div>`;
+          ? `<div class="discovery-banner">♻ 発見済み! みんなのキャッシュからエナジー0で召喚</div>`
+          : `<div class="discovery-banner">✓ 自分の発見済みデータからエナジー0で召喚</div>`;
     area.innerHTML = `
       <div>
         ${cardHtml(card)}
         ${discovery}
         ${metricsHtml(card)}
         <div class="card-actions">
-          <button class="primary" id="saveLatestCard">5枚枠に保存</button>
-          <button class="secondary" id="shareLatestCard">SNS共有</button>
-          <button class="secondary" id="downloadLatestCard">カード画像</button>
-          <button class="secondary" id="battleLatestNpc">NPCと戦う</button>
-          <button class="secondary" id="openLatestSite">サイトを見る</button>
+          <button class="primary" id="saveLatestCard">お気に入りに保存</button>
+          <button class="secondary" id="shareLatestCard">SNSで見せる</button>
+          <button class="secondary" id="downloadLatestCard">画像保存</button>
+          <button class="secondary" id="battleLatestNpc">このカードで戦う</button>
+          <button class="secondary" id="openLatestSite">元サイトを見る</button>
         </div>
-        <div class="share-note">SNS共有はカード画像＋短い投稿文をローカル生成します。対応端末では画像付きWeb Shareを使います。</div>
+        <div class="share-note">SNSで見せるは画像保存＋短い投稿文をローカル生成します。対応端末では画像付きWeb Shareを使います。</div>
       </div>`;
     $("#saveLatestCard").onclick = () => saveCard(card);
     $("#shareLatestCard").onclick = () => shareCard(card);
@@ -654,12 +727,12 @@
         <div class="card-wrap" data-card-id="${esc(c.id)}">
           ${cardHtml(c)}
           <div class="card-actions">
-            <button class="primary act-share">SNS共有</button>
+            <button class="primary act-share">SNSで見せる</button>
             <button class="secondary act-image">画像</button>
-            <button class="secondary act-name">名前</button>
+            <button class="secondary act-name">名前変更</button>
             <button class="secondary act-battle">NPC戦</button>
             <button class="secondary act-open">サイト</button>
-            <button class="secondary act-rescan">再計測 ⚡1</button>
+            <button class="secondary act-rescan">最新に更新 ⚡1</button>
             <button class="danger ghost act-delete">削除</button>
           </div>
         </div>`).join("");
@@ -689,7 +762,7 @@
     const sel = $("#rushCardSelect");
     const cards = getCards();
     sel.innerHTML = cards.length
-      ? cards.map(c => `<option value="${esc(c.id)}">${esc(c.domain)} — BP ${fmt(c.bp)}</option>`).join("")
+      ? cards.map(c => `<option value="${esc(c.id)}">${esc(displayName(c))} — 戦闘力 ${fmt(c.bp)}</option>`).join("")
       : `<option value="">保存カードがありません</option>`;
     $("#rushStartButton").disabled = !cards.length;
   }
@@ -706,104 +779,186 @@
     };
   }
 
+  const ATTACK_NAMES = {
+    STATIC:"高速リクエスト", GUARD:"堅牢カウンター", APP:"コードバースト", MEDIA:"ビジュアルラッシュ",
+    TANK:"メガバイトプレス", PORTAL:"DOMコンボ", ARCHIVE:"文章ラッシュ", DESIGN:"スタイルブレード",
+    LEGACY:"古代の一撃", SUMMONER:"外部召喚", TITAN:"超重量プレス", CLOUD:"クラウドストライク", MAZE:"迷宮コンボ", WEB:"ウェブストライク"
+  };
+  const STAT_NAMES = { atk:"火力", def:"守備", spd:"速さ", tec:"技術" };
+
   function battle(cardA, cardB) {
     const seed = (Date.now() ^ Math.floor(Math.random()*0xffffffff)) >>> 0;
     const rnd = seededRandom(seed);
-    const A = fighter(cardA, rnd);
-    const B = fighter(cardB, rnd);
+    const A = fighter(cardA);
+    const B = fighter(cardB);
+    const events = [];
     const log = [];
 
-    applyOpening(A, rnd, log);
-    applyOpening(B, rnd, log);
+    applyOpening(A, rnd, events, log);
+    applyOpening(B, rnd, events, log);
 
-    for (let turn = 1; turn <= 20; turn++) {
+    let lastTurn = 1;
+    for (let turn = 1; turn <= 18; turn++) {
+      lastTurn = turn;
+      events.push({ kind:"turn", turn });
       const first = actionOrder(A, B, turn, rnd);
       const second = first === A ? B : A;
-      log.push(`— TURN ${turn} —`);
-      attack(first, second, rnd, log);
-      if (second.hp <= 0) return result(cardA, cardB, first.card.id, turn, seed, log);
-      attack(second, first, rnd, log);
-      if (first.hp <= 0) return result(cardA, cardB, second.card.id, turn, seed, log);
+      attack(first, second, rnd, turn, events, log);
+      if (second.hp <= 0) return finishBattle(cardA, cardB, A, B, first.card.id, turn, seed, events, log);
+      attack(second, first, rnd, turn, events, log);
+      if (first.hp <= 0) return finishBattle(cardA, cardB, A, B, second.card.id, turn, seed, events, log);
     }
 
-    const winner = A.hp / A.maxHp >= B.hp / B.maxHp ? A : B;
-    log.push(`20ターン終了。残HP率判定で ${winner.card.domain} が勝利。`);
-    return result(cardA, cardB, winner.card.id, 20, seed, log);
+    const aRate = A.hp / A.maxHp;
+    const bRate = B.hp / B.maxHp;
+    const winner = aRate === bRate ? (A.spd >= B.spd ? A : B) : (aRate > bRate ? A : B);
+    log.push(`18ターン終了。残りHP率で「${displayName(winner.card)}」が勝利。`);
+    events.push({ kind:"judge", text:"長期戦! 残りHP率で判定" });
+    return finishBattle(cardA, cardB, A, B, winner.card.id, lastTurn, seed, events, log);
   }
 
-  function fighter(card, rnd) {
+  function fighter(card) {
+    const maxHp = Math.round(520 + card.stats.hp * 1.85);
     const f = {
-      card, hp: card.stats.hp * 3, maxHp: card.stats.hp * 3,
-      atk: card.stats.atk, def: card.stats.def, spd: card.stats.spd, tec: card.stats.tec,
-      skills: new Set((card.skills || []).map(s=>s.name))
+      card, hp:maxHp, maxHp,
+      atk:card.stats.atk, def:card.stats.def, spd:card.stats.spd, tec:card.stats.tec,
+      skills:new Set((card.skills || []).map(s=>s.name)),
+      passiveNotes:[], attacks:0, damageDealt:0, damageTaken:0
     };
-    if (f.skills.has("重装要塞")) { f.maxHp *= 1.15; f.hp = f.maxHp; f.spd *= .92; }
-    if (f.skills.has("巨大生命")) { f.maxHp *= 1.22; f.hp = f.maxHp; }
-    if (f.skills.has("古代HTML")) f.spd *= 1.15;
-    if (f.skills.has("魔術過積載")) f.spd *= .92;
-    if (f.skills.has("DOM迷宮")) f.def *= 1.08;
-    if (f.skills.has("鉄壁")) f.def *= 1.10;
-    if (f.skills.has("CSS甲冑")) f.def *= 1.05;
+    if (f.skills.has("重装要塞")) { f.maxHp = Math.round(f.maxHp * 1.18); f.hp=f.maxHp; f.spd*=.92; f.passiveNotes.push("重装要塞：最大HP+18% / 速さ-8%"); }
+    if (f.skills.has("巨大生命")) { f.maxHp = Math.round(f.maxHp * 1.25); f.hp=f.maxHp; f.passiveNotes.push("巨大生命：最大HP+25%"); }
+    if (f.skills.has("古代HTML")) { f.spd*=1.12; f.passiveNotes.push("古代HTML：速さ+12%"); }
+    if (f.skills.has("魔術過積載")) { f.spd*=.92; f.passiveNotes.push("魔術過積載：技術攻撃アップ / 速さ-8%"); }
+    if (f.skills.has("DOM迷宮")) { f.def*=1.10; f.passiveNotes.push("DOM迷宮：守備+10%"); }
+    if (f.skills.has("鉄壁")) { f.def*=1.12; f.passiveNotes.push("鉄壁：守備+12%"); }
+    if (f.skills.has("CSS甲冑")) { f.def*=1.07; f.passiveNotes.push("CSS甲冑：守備+7%"); }
+    if (f.skills.has("三重結界")) f.passiveNotes.push("三重結界：被ダメージ-10%");
+    if (f.skills.has("無の境地")) f.passiveNotes.push("無の境地：技術攻撃を軽減");
+    if (f.skills.has("静寂のページ")) f.passiveNotes.push("静寂のページ：ときどき攻撃回避");
     return f;
   }
 
-  function applyOpening(f, rnd, log) {
+  function applyOpening(f, rnd, events, log) {
+    for (const note of f.passiveNotes.slice(0, 3)) {
+      events.push({ kind:"opening", cardId:f.card.id, skill:note.split("：")[0], text:note });
+      log.push(`${displayName(f.card)}「${note}」`);
+    }
     if (f.skills.has("第三者召喚")) {
       const keys = ["atk","def","spd","tec"];
       const k = keys[Math.floor(rnd()*keys.length)];
-      f[k] *= 1.12;
-      log.push(`${f.card.domain}「第三者召喚」→ ${k.toUpperCase()} +12%`);
+      f[k] *= 1.10;
+      const text = `第三者召喚：${STAT_NAMES[k]}+10%`;
+      events.push({ kind:"opening", cardId:f.card.id, skill:"第三者召喚", text });
+      log.push(`${displayName(f.card)}「${text}」`);
     }
   }
 
   function actionOrder(A, B, turn, rnd) {
     if (turn === 1 && A.skills.has("神速") !== B.skills.has("神速")) return A.skills.has("神速") ? A : B;
-    const a = A.spd * (.92 + rnd()*.16);
-    const b = B.spd * (.92 + rnd()*.16);
+    const a = A.spd * (.96 + rnd()*.08);
+    const b = B.spd * (.96 + rnd()*.08);
     return a >= b ? A : B;
   }
 
-  function attack(attacker, defender, rnd, log) {
-    const techAttack = attacker.tec > attacker.atk * 1.08 && rnd() < .42;
+  function attack(attacker, defender, rnd, turn, events, log) {
+    attacker.attacks++;
+    const techBias = attacker.card.className === "APP" || attacker.card.className === "SUMMONER" ? .12 : 0;
+    const techChance = clamp(.29 + (attacker.tec - attacker.atk) / 1800 + techBias, .18, .68);
+    const techAttack = rnd() < techChance;
     const offense = techAttack ? attacker.tec : attacker.atk;
-    let defense = defender.def;
-    let skillLabel = techAttack ? "TEC" : "ATK";
+    let defense = techAttack ? defender.def * .72 + defender.spd * .28 : defender.def;
+    const tags = [];
 
-    if (techAttack && defender.skills.has("無の境地")) defense *= 1.28;
-    let base = 42 * Math.sqrt(Math.max(.25, offense / Math.max(1, defense)));
-    base *= .88 + rnd()*.24;
+    if (techAttack && defender.skills.has("無の境地")) { defense *= 1.28; tags.push("無の境地"); }
+    let damage = 115 * Math.pow(clamp(offense / Math.max(180, defense), .38, 2.65), .48);
+    damage *= .94 + rnd()*.12;
 
-    if (techAttack && attacker.skills.has("魔術過積載")) { base *= 1.20; skillLabel = "魔術過積載"; }
-    if (defender.skills.has("三重結界")) base *= .90;
-    if (defender.skills.has("静寂のページ") && rnd() < .10) {
-      log.push(`${defender.card.domain}「静寂のページ」→ 攻撃を回避！`);
+    let skillName = null;
+    if (techAttack && attacker.skills.has("魔術過積載")) { damage *= 1.22; skillName="魔術過積載"; }
+    if (defender.skills.has("三重結界")) { damage *= .90; tags.push("三重結界"); }
+
+    if (defender.skills.has("静寂のページ") && rnd() < .11) {
+      const attackName = techAttack ? "コードバースト" : (ATTACK_NAMES[attacker.card.className] || "ウェブストライク");
+      const text = `${displayName(defender.card)}「静寂のページ」! ${attackName}を回避`;
+      events.push({ kind:"evade", turn, attackerId:attacker.card.id, defenderId:defender.card.id, attackName, text });
+      log.push(text);
       return;
     }
-    if (attacker.skills.has("揺らぐ大地") && rnd() < .16) {
-      base *= 1.65;
-      skillLabel = "揺らぐ大地";
-    }
 
-    const hit = Math.max(8, Math.round(base));
-    defender.hp -= hit;
-    log.push(`${attacker.card.domain} [${skillLabel}] → ${defender.card.domain} に ${hit} damage (HP ${Math.max(0,Math.round(defender.hp))})`);
+    let critical = false;
+    const critChance = clamp(.045 + (attacker.spd - defender.spd) / 5200, .025, .16);
+    if (rnd() < critChance) { damage *= 1.45; critical=true; }
+    if (turn === 1 && attacker.skills.has("神速") && attacker.attacks === 1) { damage *= 1.12; skillName = skillName || "神速"; }
+    if (attacker.skills.has("揺らぐ大地") && rnd() < .15) { damage *= 1.55; skillName="揺らぐ大地"; }
 
-    if (!techAttack && attacker.skills.has("画像弾幕") && rnd() < .28 && defender.hp > 0) {
-      const hit2 = Math.max(5, Math.round(hit * .55));
-      defender.hp -= hit2;
-      log.push(`${attacker.card.domain}「画像弾幕」→ 追加 ${hit2} damage！`);
+    damage = Math.max(36, Math.round(damage));
+    defender.hp = Math.max(0, defender.hp - damage);
+    attacker.damageDealt += damage;
+    defender.damageTaken += damage;
+    const attackName = techAttack ? "コードバースト" : (ATTACK_NAMES[attacker.card.className] || "ウェブストライク");
+    const explain = `${techAttack ? "技術" : "火力"}${Math.round(offense)} vs 守備${Math.round(defense)}`;
+    const text = `${displayName(attacker.card)}「${attackName}」→ ${damage}ダメージ${critical ? "! 会心!" : ""}`;
+    events.push({
+      kind:"attack", turn, attackerId:attacker.card.id, defenderId:defender.card.id,
+      attackName, techAttack, damage, hpAfter:defender.hp, maxHp:defender.maxHp,
+      critical, skillName, tags, explain, text
+    });
+    log.push(`${text} (${explain}${tags.length ? ` / ${tags.join("+")}で軽減` : ""})`);
+
+    if (!techAttack && attacker.skills.has("画像弾幕") && rnd() < .34 && defender.hp > 0) {
+      const extra = Math.max(20, Math.round(damage * .46));
+      defender.hp = Math.max(0, defender.hp - extra);
+      attacker.damageDealt += extra;
+      defender.damageTaken += extra;
+      const extraText = `${displayName(attacker.card)}「画像弾幕」→ 追加${extra}ダメージ`;
+      events.push({ kind:"extra", turn, attackerId:attacker.card.id, defenderId:defender.card.id, attackName:"画像弾幕", damage:extra, hpAfter:defender.hp, maxHp:defender.maxHp, skillName:"画像弾幕", text:extraText });
+      log.push(extraText);
     }
   }
 
-  function result(cardA, cardB, winnerId, turns, seed, log) {
-    return {
-      id: `battle-${Date.now().toString(36)}-${Math.floor(Math.random()*9999)}`,
-      playedAt: now(), seed, turns, log,
-      cardA, cardB,
-      winnerId,
-      winner: winnerId === cardA.id ? cardA : cardB,
-      loser: winnerId === cardA.id ? cardB : cardA
+  function finishBattle(cardA, cardB, A, B, winnerId, turns, seed, events, log) {
+    const winner = winnerId === cardA.id ? cardA : cardB;
+    const loser = winnerId === cardA.id ? cardB : cardA;
+    const wf = winnerId === cardA.id ? A : B;
+    const lf = winnerId === cardA.id ? B : A;
+    const finisher = [...events].reverse().find(e => (e.kind === "attack" || e.kind === "extra") && e.attackerId === winnerId);
+    const result = {
+      id:`battle-${Date.now().toString(36)}-${Math.floor(Math.random()*9999)}`,
+      playedAt:now(), seed, turns, log, events, cardA, cardB, winnerId, winner, loser,
+      fighterA:{ hp:A.hp, maxHp:A.maxHp, damageDealt:A.damageDealt, damageTaken:A.damageTaken },
+      fighterB:{ hp:B.hp, maxHp:B.maxHp, damageDealt:B.damageDealt, damageTaken:B.damageTaken },
+      finisher
     };
+    result.reasons = buildBattleReasons(result, wf, lf);
+    return result;
+  }
+
+  function buildBattleReasons(r, wf, lf) {
+    const reasons = [];
+    const w = r.winner.stats, l = r.loser.stats;
+    const statDiffs = [
+      ["速さで先行", w.spd-l.spd, `速さ ${w.spd} vs ${l.spd}`],
+      ["火力差", w.atk-l.atk, `火力 ${w.atk} vs ${l.atk}`],
+      ["守備差", w.def-l.def, `守備 ${w.def} vs ${l.def}`],
+      ["耐久差", w.hp-l.hp, `耐久 ${w.hp} vs ${l.hp}`],
+      ["技術差", w.tec-l.tec, `技術 ${w.tec} vs ${l.tec}`]
+    ].sort((a,b)=>b[1]-a[1]);
+    if (statDiffs[0][1] >= 70) reasons.push({ title:statDiffs[0][0], detail:statDiffs[0][2] });
+
+    const winnerEvents = r.events.filter(e => e.attackerId === r.winnerId && (e.kind === "attack" || e.kind === "extra"));
+    const skillCounts = new Map();
+    for (const e of winnerEvents) if (e.skillName) skillCounts.set(e.skillName, (skillCounts.get(e.skillName)||0)+1);
+    const topSkill = [...skillCounts.entries()].sort((a,b)=>b[1]-a[1])[0];
+    if (topSkill) reasons.push({ title:`固有技「${topSkill[0]}」`, detail:`バトル中に${topSkill[1]}回、ダメージへ影響` });
+
+    if (wf.damageDealt >= lf.damageDealt * 1.12) reasons.push({ title:"ダメージ効率", detail:`与ダメ ${Math.round(wf.damageDealt)} / 被ダメ ${Math.round(wf.damageTaken)}` });
+    if (r.finisher) reasons.push({ title:"決め手", detail:`${r.finisher.attackName} ${r.finisher.damage}ダメージ` });
+    while (reasons.length < 3) {
+      const next = statDiffs.find(x => !reasons.some(r=>r.detail === x[2]));
+      if (next) reasons.push({ title:next[1] >= 0 ? `${next[0]}` : "接戦を制した", detail:next[2] });
+      else reasons.push({ title:"接戦", detail:`${r.turns}ターンの勝負` });
+    }
+    return reasons.slice(0,3);
   }
 
   function showBattle(a, b, mode = "LOCAL", target = "dialog") {
@@ -814,18 +969,19 @@
       winnerDomain:displayName(r.winner), loserDomain:displayName(r.loser)
     });
 
-    const html = battleResultHtml(r);
+    let root;
     if (target === "rush") {
-      $("#rushArena").innerHTML = html;
-      bindResultActions($("#rushArena"), r, true);
+      root = $("#rushArena");
+      root.innerHTML = battleResultHtml(r);
     } else if (target === "arena") {
-      $("#battleArena").innerHTML = html;
-      bindResultActions($("#battleArena"), r, false);
+      root = $("#battleArena");
+      root.innerHTML = battleResultHtml(r);
     } else {
-      $("#battleDialogContent").innerHTML = html;
-      bindResultActions($("#battleDialogContent"), r, false);
-      $("#battleDialog").showModal();
+      root = $("#battleDialogContent");
+      root.innerHTML = battleResultHtml(r);
+      if (!$("#battleDialog").open) $("#battleDialog").showModal();
     }
+    playBattleAnimation(r, root, target === "rush", target);
     return r;
   }
 
@@ -833,44 +989,175 @@
     return { id:c.id, domain:c.domain, siteName:c.siteName, url:c.url, className:c.className, stats:c.stats, bp:c.bp, skills:c.skills };
   }
 
-  function battleResultHtml(r) {
+  function fighterBattleHtml(card, hp, side) {
     return `
-      <div class="arena">
-        <div class="arena-cards">
-          ${cardHtml(r.cardA)}
-          <div class="arena-vs">VS</div>
-          ${cardHtml(r.cardB)}
+      <div class="battle-fighter ${side === "A" ? "left" : "right"}" data-side="${side}">
+        <div class="fighter-head">
+          <div><small>${side === "A" ? "1P" : "2P"} / ${esc(classLabel(card))}</small><strong>${esc(displayName(card))}</strong></div>
+          <span class="fighter-sigil">${esc(classSigil(card))}</span>
         </div>
-        <div class="result-banner">
-          <div>
-            <p>WINNER / ${r.turns} TURN</p>
-            <h3>${esc(displayName(r.winner))}</h3>
-          </div>
-          <div class="result-actions">
-            <button class="primary result-download">結果画像</button>
-            <button class="secondary result-share">共有</button>
-            <button class="secondary result-rematch">再戦</button>
-            <button class="secondary result-next hidden">次のNPC</button>
-          </div>
+        <div class="hp-line">
+          <div class="hp-label"><span>HP</span><b class="hp-text">${fmt(hp)} / ${fmt(hp)}</b></div>
+          <div class="hp-track"><div class="hp-fill"></div></div>
         </div>
-        <div class="battle-log">
-          ${r.log.map(x=>`<div class="log-line">${esc(x)}</div>`).join("")}
-        </div>
+        <div class="fighter-mini-stats"><span>火力 ${card.stats.atk}</span><span>守備 ${card.stats.def}</span><span>速さ ${card.stats.spd}</span></div>
       </div>`;
   }
 
-  function bindResultActions(root, r, rush) {
+  function battleResultHtml(r) {
+    return `
+      <section class="battle-shell">
+        <div class="battle-top"><b>URLバトル 実況中</b><span>能力差 + 固有技 + 少量の乱数で決着</span></div>
+        <div class="battle-stage">
+          ${fighterBattleHtml(r.cardA, r.fighterA.maxHp, "A")}
+          <div class="battle-center">
+            <span class="turn-chip">READY</span>
+            <div class="battle-message">対戦データを読み込み中...</div>
+            <button class="battle-skip" type="button">演出をスキップ</button>
+          </div>
+          ${fighterBattleHtml(r.cardB, r.fighterB.maxHp, "B")}
+          <div class="battle-fx"></div><div class="skill-flash"></div>
+        </div>
+        <div class="battle-result hidden"></div>
+      </section>`;
+  }
+
+  function sideForCard(r, id) { return id === r.cardA.id ? "A" : "B"; }
+  function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+  async function playBattleAnimation(r, root, rush, target) {
+    const playback = ++battlePlaybackId;
+    const shell = $(".battle-shell", root);
+    if (!shell) return;
+    const msg = $(".battle-message", shell);
+    const turnChip = $(".turn-chip", shell);
+    const fx = $(".battle-fx", shell);
+    const flash = $(".skill-flash", shell);
+    const skip = $(".battle-skip", shell);
+    let skipNow = false;
+    skip.onclick = () => { skipNow = true; skip.textContent = "スキップ中..."; };
+
+    const hpState = { A:r.fighterA.maxHp, B:r.fighterB.maxHp };
+    msg.textContent = `${displayName(r.cardA)} vs ${displayName(r.cardB)} — バトル開始!`;
+    showBattleFx(fx, "BATTLE!");
+    await sleep(520);
+
+    for (const e of r.events) {
+      if (playback !== battlePlaybackId) return;
+      if (skipNow) break;
+      if (e.kind === "turn") {
+        turnChip.textContent = `${e.turn}ターン目`;
+        continue;
+      }
+      if (e.kind === "judge") {
+        msg.textContent = e.text;
+        showBattleFx(fx, "判定!");
+        await sleep(520);
+        continue;
+      }
+      if (e.kind === "opening") {
+        const side = sideForCard(r, e.cardId);
+        const fighterEl = $(`.battle-fighter[data-side="${side}"]`, shell);
+        fighterEl?.classList.add(side === "A" ? "lunge-left" : "lunge-right");
+        flash.classList.remove("on"); void flash.offsetWidth; flash.classList.add("on");
+        msg.textContent = e.text;
+        showBattleFx(fx, e.skill);
+        await sleep(500);
+        fighterEl?.classList.remove("lunge-left","lunge-right");
+        continue;
+      }
+      if (e.kind === "evade") {
+        const aSide = sideForCard(r, e.attackerId), dSide = sideForCard(r, e.defenderId);
+        const aEl = $(`.battle-fighter[data-side="${aSide}"]`, shell);
+        const dEl = $(`.battle-fighter[data-side="${dSide}"]`, shell);
+        aEl?.classList.add(aSide === "A" ? "lunge-left" : "lunge-right");
+        dEl?.classList.add(dSide === "A" ? "lunge-right" : "lunge-left");
+        msg.textContent = e.text;
+        showBattleFx(fx, "MISS!");
+        await sleep(430);
+        aEl?.classList.remove("lunge-left","lunge-right"); dEl?.classList.remove("lunge-left","lunge-right");
+        continue;
+      }
+      if (e.kind === "attack" || e.kind === "extra") {
+        const aSide = sideForCard(r, e.attackerId), dSide = sideForCard(r, e.defenderId);
+        const aEl = $(`.battle-fighter[data-side="${aSide}"]`, shell);
+        const dEl = $(`.battle-fighter[data-side="${dSide}"]`, shell);
+        aEl?.classList.add(aSide === "A" ? "lunge-left" : "lunge-right");
+        await sleep(90);
+        dEl?.classList.add("hit");
+        hpState[dSide] = e.hpAfter;
+        updateBattleHp(dEl, e.hpAfter, e.maxHp);
+        spawnDamage(shell, dEl, `${e.critical ? "会心! " : ""}-${e.damage}`);
+        msg.textContent = e.kind === "extra" ? e.text : `${e.text} / ${e.explain}`;
+        if (e.skillName) showBattleFx(fx, e.skillName);
+        await sleep(e.kind === "extra" ? 390 : 470);
+        aEl?.classList.remove("lunge-left","lunge-right"); dEl?.classList.remove("hit");
+      }
+    }
+
+    const aEl = $('.battle-fighter[data-side="A"]', shell);
+    const bEl = $('.battle-fighter[data-side="B"]', shell);
+    updateBattleHp(aEl, r.fighterA.hp, r.fighterA.maxHp);
+    updateBattleHp(bEl, r.fighterB.hp, r.fighterB.maxHp);
+    turnChip.textContent = `${r.turns}ターン決着`;
+    msg.textContent = `勝者「${displayName(r.winner)}」!`;
+    showBattleFx(fx, "WIN!");
+    await sleep(skipNow ? 120 : 500);
+    showBattleFinal(shell, r, rush, target);
+  }
+
+  function showBattleFx(el, text) {
+    if (!el) return;
+    el.textContent = text;
+    el.classList.remove("show"); void el.offsetWidth; el.classList.add("show");
+  }
+
+  function updateBattleHp(el, hp, maxHp) {
+    if (!el) return;
+    const rate = clamp(hp / maxHp, 0, 1);
+    $(".hp-fill", el).style.width = `${rate*100}%`;
+    $(".hp-text", el).textContent = `${fmt(Math.max(0,hp))} / ${fmt(maxHp)}`;
+    if (rate < .28) $(".hp-fill", el).style.background = "linear-gradient(90deg,#f04c4c,#ff8a32)";
+  }
+
+  function spawnDamage(shell, target, text) {
+    if (!target) return;
+    const stage = $(".battle-stage", shell);
+    const pop = document.createElement("span");
+    pop.className="damage-pop"; pop.textContent=text;
+    const tr=target.getBoundingClientRect(), sr=stage.getBoundingClientRect();
+    pop.style.left=`${tr.left-sr.left+tr.width*.45}px`; pop.style.top=`${tr.top-sr.top+tr.height*.33}px`;
+    stage.appendChild(pop); setTimeout(()=>pop.remove(),800);
+  }
+
+  function showBattleFinal(shell, r, rush, target) {
+    const resultEl = $(".battle-result", shell);
+    resultEl.classList.remove("hidden");
+    resultEl.innerHTML = `
+      <div class="winner-strip">
+        <div><small>勝者 / ${r.turns}ターン</small><h3>${esc(displayName(r.winner))}</h3></div>
+        <div class="winner-badge">勝<br>利!</div>
+      </div>
+      <div class="reason-grid">${r.reasons.map(x=>`<div class="reason-card"><b>${esc(x.title)}</b><span>${esc(x.detail)}</span></div>`).join("")}</div>
+      <div class="result-actions">
+        <button class="primary result-share">SNSで結果共有</button>
+        <button class="secondary result-download">結果画像を保存</button>
+        <button class="secondary result-rematch">もう一戦</button>
+        <button class="secondary result-next hidden">次のNPCへ</button>
+      </div>
+      <details class="battle-log"><summary>詳しいバトルログを見る</summary>${r.log.map(x=>`<div class="log-line">${esc(x)}</div>`).join("")}</details>`;
+    bindResultActions(resultEl, r, rush, target);
+  }
+
+  function bindResultActions(root, r, rush, target) {
     $(".result-download", root).onclick = () => downloadResultImage(r);
     $(".result-share", root).onclick = () => shareResult(r);
     $(".result-rematch", root).onclick = () => {
       if (rush) doRushBattle(r.cardA);
-      else showBattle(r.cardA, r.cardB, "REMATCH", root === $("#battleArena") ? "arena" : "dialog");
+      else showBattle(r.cardA, r.cardB, "REMATCH", target);
     };
     const next = $(".result-next", root);
-    if (rush) {
-      next.classList.remove("hidden");
-      next.onclick = () => doRushBattle(r.cardA);
-    }
+    if (rush) { next.classList.remove("hidden"); next.onclick = () => doRushBattle(r.cardA); }
   }
 
   function doRushBattle(card) {
@@ -898,12 +1185,12 @@
   }
 
   function makeCardShareText(card) {
-    const statLine = `BP ${card.bp}｜HP ${card.stats.hp} ATK ${card.stats.atk} DEF ${card.stats.def} SPD ${card.stats.spd} TEC ${card.stats.tec}`;
+    const statLine = `戦闘力 ${card.bp}｜耐久${card.stats.hp} 火力${card.stats.atk} 守備${card.stats.def} 速さ${card.stats.spd} 技術${card.stats.tec}`;
     let name = displayName(card).slice(0, 42);
-    let text = `強URL発見⚡ ${name}\n${statLine}\n${card.url}\n#URLBATTLER\n${PUBLIC_APP_URL}`;
+    let text = `⚡強URL発見!「${name}」\n${statLine}\n${card.url}\n#URLバトラー\n${PUBLIC_APP_URL}`;
     while (xWeightedEstimate(text) > 270 && name.length > 8) {
       name = `${name.slice(0,-2)}…`;
-      text = `強URL発見⚡ ${name}\n${statLine}\n${card.url}\n#URLBATTLER\n${PUBLIC_APP_URL}`;
+      text = `⚡強URL発見!「${name}」\n${statLine}\n${card.url}\n#URLバトラー\n${PUBLIC_APP_URL}`;
     }
     return text;
   }
@@ -923,16 +1210,16 @@
     const file = new File([blob], `url-battler-card-${hashString(card.url)}.png`, {type:"image/png"});
     try {
       if (navigator.share && navigator.canShare?.({files:[file]})) {
-        await navigator.share({ title:`URL BATTLER - ${displayName(card)}`, text, files:[file] });
+        await navigator.share({ title:`URLバトラー - ${displayName(card)}`, text, files:[file] });
         return;
       }
       if (navigator.share) {
-        await navigator.share({ title:`URL BATTLER - ${displayName(card)}`, text });
+        await navigator.share({ title:`URLバトラー - ${displayName(card)}`, text });
         return;
       }
       await navigator.clipboard.writeText(text);
       await downloadCardImage(card);
-      showAlert(`SNS投稿文をコピーし、カード画像を保存しました。X換算の推定文字数：約${xWeightedEstimate(text)} / 280`, "success");
+      showAlert(`SNS投稿文をコピーし、カード画像も保存しました。X換算の推定文字数：約${xWeightedEstimate(text)} / 280`, "success");
     } catch(e) {
       if (e?.name !== "AbortError") {
         try {
@@ -950,52 +1237,37 @@
       const c = document.createElement("canvas");
       c.width = 1200; c.height = 630;
       const x = c.getContext("2d");
-      const [a,b] = cardColors(card);
+      const [,accent] = cardColors(card);
 
-      x.fillStyle = "#090b10"; x.fillRect(0,0,c.width,c.height);
-      const grad = x.createRadialGradient(1060, 30, 20, 930, 80, 520);
-      grad.addColorStop(0, b);
-      grad.addColorStop(1, "#090b10");
-      x.globalAlpha = .24; x.fillStyle = grad; x.fillRect(0,0,c.width,c.height); x.globalAlpha = 1;
+      x.fillStyle = "#bfe8ff"; x.fillRect(0,0,1200,630);
+      x.fillStyle = "#fff9ea"; roundRect(x,34,30,1132,570,28); x.fill();
+      x.lineWidth=6; x.strokeStyle="#17202b"; x.stroke();
+      x.fillStyle = "#ffd83d"; x.fillRect(34,30,1132,72);
+      x.fillStyle = "#17202b"; x.font = "900 27px sans-serif"; x.fillText("URLバトラー / 強URLカード", 72,77);
 
-      x.fillStyle = "#b9ff38"; x.fillRect(0,0,16,c.height);
-      x.fillStyle = "#72e8ff"; x.font = "700 23px sans-serif"; x.fillText("URL BATTLER / FOUND CARD", 70, 68);
+      x.fillStyle = accent; x.globalAlpha=.18; x.beginPath(); x.arc(1050,175,170,0,Math.PI*2); x.fill(); x.globalAlpha=1;
+      x.fillStyle="#ff5e9f"; x.font="900 72px sans-serif"; x.fillText(String(card.bp),72,216);
+      x.fillStyle="#17202b"; x.font="900 20px sans-serif"; x.fillText("戦闘力",76,246);
 
-      x.fillStyle = "#ffffff"; x.font = "900 56px sans-serif";
-      fitText(x, displayName(card), 70, 145, 1030);
+      x.fillStyle="#17202b"; x.font="900 52px sans-serif"; fitText(x, displayName(card), 300, 176, 780);
+      x.fillStyle="#208cff"; x.font="800 21px sans-serif"; x.fillText(compactUrlForImage(card.url,82),300,216);
+      x.fillStyle="#17202b"; x.font="900 18px sans-serif"; x.fillText(`${classLabel(card)} / ${card.strategy === "mobile" ? "スマホ測定" : "PC測定"}`,300,250);
 
-      x.fillStyle = "#9aa5b5"; x.font = "600 22px sans-serif";
-      x.fillText(compactUrlForImage(card.url), 70, 190);
-
-      x.fillStyle = "#b9ff38"; x.font = "900 76px sans-serif";
-      x.fillText(String(card.bp), 70, 302);
-      x.fillStyle = "#9aa5b5"; x.font = "700 18px sans-serif"; x.fillText("BATTLE POWER", 74, 330);
-
-      const labels = ["HP","ATK","DEF","SPD","TEC"];
-      const vals = [card.stats.hp,card.stats.atk,card.stats.def,card.stats.spd,card.stats.tec];
+      const labels=["耐久","火力","守備","速さ","技術"];
+      const vals=[card.stats.hp,card.stats.atk,card.stats.def,card.stats.spd,card.stats.tec];
+      const fills=["#fff0df","#ffe2ef","#e0f3ff","#fff6bd","#eee8ff"];
       labels.forEach((lab,i)=>{
-        const px = 335 + i*165;
-        x.fillStyle = "#171c26"; roundRect(x,px,238,145,96,14); x.fill();
-        x.fillStyle = "#9aa5b5"; x.font = "700 16px sans-serif"; x.fillText(lab,px+15,268);
-        x.fillStyle = "#ffffff"; x.font = "900 39px sans-serif"; x.fillText(String(vals[i]),px+15,312);
+        const px=72+i*212;
+        x.fillStyle=fills[i]; roundRect(x,px,304,188,112,14); x.fill(); x.lineWidth=4; x.strokeStyle="#17202b"; x.stroke();
+        x.fillStyle="#667085"; x.font="900 17px sans-serif"; x.fillText(lab,px+16,337);
+        x.fillStyle="#17202b"; x.font="900 46px sans-serif"; x.fillText(String(vals[i]),px+16,391);
       });
 
-      x.fillStyle = "#ffffff"; x.font = "800 20px sans-serif";
-      x.fillText(`CLASS  ${card.className}`, 70, 402);
-
-      const skills = (card.skills || []).map(s=>s.name).slice(0,3);
-      x.fillStyle = "#9aa5b5"; x.font = "600 20px sans-serif";
-      x.fillText(`SKILLS  ${skills.length ? skills.join(" / ") : "ノーマル"}`, 70, 447);
-
-      x.fillStyle = "#72e8ff"; x.font = "800 22px sans-serif";
-      x.fillText("#URLBATTLER", 70, 538);
-      x.fillStyle = "#9aa5b5"; x.font = "600 17px sans-serif";
-      x.fillText(compactUrlForImage(PUBLIC_APP_URL, 90), 70, 575);
-
-      x.fillStyle = "#ffffff"; x.font = "700 17px sans-serif";
-      x.textAlign = "right";
-      x.fillText(`${card.domain} / ${String(card.strategy || "desktop").toUpperCase()}`, 1130, 575);
-      x.textAlign = "left";
+      const skills=(card.skills||[]).map(s=>s.name).slice(0,3);
+      x.fillStyle="#17202b"; x.font="900 19px sans-serif"; x.fillText(`固有技  ${skills.length?skills.join(" / "):"ノーマル"}`,72,468);
+      x.fillStyle="#667085"; x.font="700 17px sans-serif"; x.fillText(compactUrlForImage(card.domain,60),72,504);
+      x.fillStyle="#ff5e9f"; x.font="900 24px sans-serif"; x.fillText("#URLバトラー",72,557);
+      x.fillStyle="#17202b"; x.font="700 16px sans-serif"; x.fillText(compactUrlForImage(PUBLIC_APP_URL,88),260,557);
 
       c.toBlob(blob => resolve(blob), "image/png");
     });
@@ -1011,14 +1283,14 @@
   }
 
   async function shareResult(r) {
-    const text = `URL BATTLER：${displayName(r.winner)} WIN！ ${r.turns}ターン決着 / BP ${r.winner.bp} #URLBATTLER ${PUBLIC_APP_URL}`;
+    const text = `⚔ URLバトラー!「${displayName(r.winner)}」勝利! ${r.turns}ターン決着 / 戦闘力${r.winner.bp} #URLバトラー ${PUBLIC_APP_URL}`;
     const blob = await makeResultImage(r);
     const file = new File([blob], `url-battler-${r.id}.png`, {type:"image/png"});
     try {
       if (navigator.share && navigator.canShare?.({files:[file]})) {
-        await navigator.share({ title:"URL BATTLER", text, files:[file] });
+        await navigator.share({ title:"URLバトラー", text, files:[file] });
       } else if (navigator.share) {
-        await navigator.share({ title:"URL BATTLER", text });
+        await navigator.share({ title:"URLバトラー", text });
       } else {
         await navigator.clipboard.writeText(text);
         showAlert("共有文をクリップボードにコピーしました。画像は「結果画像」から保存できます。", "success");
@@ -1030,32 +1302,34 @@
 
   function makeResultImage(r) {
     return new Promise(resolve => {
-      const c = document.createElement("canvas");
-      c.width = 1200; c.height = 630;
-      const x = c.getContext("2d");
-      x.fillStyle = "#090b10"; x.fillRect(0,0,c.width,c.height);
-      x.fillStyle = "#b9ff38"; x.fillRect(0,0,16,c.height);
-      x.fillStyle = "#72e8ff"; x.font = "700 24px sans-serif"; x.fillText("URL BATTLER / BATTLE RESULT", 70, 74);
-      x.fillStyle = "#ffffff"; x.font = "900 68px sans-serif"; x.fillText("WINNER", 70, 160);
-      x.fillStyle = "#b9ff38"; x.font = "900 54px sans-serif"; fitText(x, r.winner.domain, 70, 232, 1000);
-      x.fillStyle = "#9aa5b5"; x.font = "600 24px sans-serif"; x.fillText(`${r.turns} TURN / BP ${r.winner.bp}`, 70, 282);
+      const c=document.createElement("canvas"); c.width=1200; c.height=630;
+      const x=c.getContext("2d");
+      x.fillStyle="#ffd83d"; x.fillRect(0,0,1200,630);
+      x.fillStyle="#fff9ea"; roundRect(x,34,30,1132,570,28); x.fill();
+      x.lineWidth=6; x.strokeStyle="#17202b"; x.stroke();
+      x.fillStyle="#61c9ff"; x.fillRect(34,30,1132,74);
+      x.fillStyle="#17202b"; x.font="900 26px sans-serif"; x.fillText("URLバトラー / 対戦結果",72,78);
 
-      const labels = ["HP","ATK","DEF","SPD","TEC"];
-      const vals = [r.winner.stats.hp,r.winner.stats.atk,r.winner.stats.def,r.winner.stats.spd,r.winner.stats.tec];
+      x.fillStyle="#ff5e9f"; x.font="900 70px sans-serif"; x.fillText("勝利!",72,184);
+      x.fillStyle="#17202b"; x.font="900 52px sans-serif"; fitText(x,displayName(r.winner),270,180,840);
+      x.fillStyle="#667085"; x.font="800 20px sans-serif"; x.fillText(`${r.turns}ターン決着 / 戦闘力 ${r.winner.bp}`,274,216);
+
+      const labels=["耐久","火力","守備","速さ","技術"];
+      const vals=[r.winner.stats.hp,r.winner.stats.atk,r.winner.stats.def,r.winner.stats.spd,r.winner.stats.tec];
+      const fills=["#fff0df","#ffe2ef","#e0f3ff","#fff6bd","#eee8ff"];
       labels.forEach((lab,i)=>{
-        const px = 70 + i*205;
-        x.fillStyle = "#171c26"; roundRect(x,px,350,175,110,14); x.fill();
-        x.fillStyle = "#9aa5b5"; x.font = "700 18px sans-serif"; x.fillText(lab,px+18,382);
-        x.fillStyle = "#ffffff"; x.font = "900 44px sans-serif"; x.fillText(String(vals[i]),px+18,432);
+        const px=72+i*212; x.fillStyle=fills[i]; roundRect(x,px,264,188,105,14); x.fill(); x.lineWidth=4; x.strokeStyle="#17202b"; x.stroke();
+        x.fillStyle="#667085"; x.font="900 16px sans-serif"; x.fillText(lab,px+15,295);
+        x.fillStyle="#17202b"; x.font="900 43px sans-serif"; x.fillText(String(vals[i]),px+15,347);
       });
 
-      x.fillStyle = "#9aa5b5"; x.font = "600 20px sans-serif";
-      const skill = r.winner.skills?.[0]?.name || "ノーマル";
-      x.fillText(`決め手：${skill}`, 70, 525);
-      x.fillStyle = "#ffffff"; x.font = "600 18px sans-serif";
-      x.fillText(`${r.cardA.domain}  VS  ${r.cardB.domain}`, 70, 578);
-
-      c.toBlob(blob => resolve(blob), "image/png");
+      const reason=r.reasons?.[0];
+      x.fillStyle="#17202b"; x.font="900 23px sans-serif"; x.fillText(`勝因：${reason?.title || "総合力"}`,72,426);
+      x.fillStyle="#667085"; x.font="700 18px sans-serif"; x.fillText(reason?.detail || "能力と固有技の組み合わせ",72,458);
+      x.fillStyle="#17202b"; x.font="800 18px sans-serif"; x.fillText(`${displayName(r.cardA)}  VS  ${displayName(r.cardB)}`,72,505);
+      x.fillStyle="#ff5e9f"; x.font="900 24px sans-serif"; x.fillText("#URLバトラー",72,557);
+      x.fillStyle="#17202b"; x.font="700 16px sans-serif"; x.fillText(compactUrlForImage(PUBLIC_APP_URL,88),260,557);
+      c.toBlob(blob=>resolve(blob),"image/png");
     });
   }
 
@@ -1149,11 +1423,11 @@
       const card = await getPageSpeedCard($("#createUrl").value, $("#strategySelect").value, $("#forceScan").checked);
       renderLatest(card);
       if (card.discoveryStatus === "NEW") {
-        showAlert("NEW DISCOVERY！ 未発見URLを計測しました。SCAN ENERGY -1。", "success");
+        showAlert("新発見! 未発見URLを測定しました。スキャンエナジー -1。", "success");
       } else if (card.discoveryStatus === "DISCOVERED") {
-        showAlert("DISCOVERED CARD！ 誰かが発見済みの共有キャッシュからENERGY 0で召喚しました。", "success");
+        showAlert("発見済みカード! みんなの共有キャッシュからエナジー0で召喚しました。", "success");
       } else {
-        showAlert("ローカル保存済みの計測結果からENERGY 0で召喚しました。", "success");
+        showAlert("自分の発見済みデータからエナジー0で召喚しました。", "success");
       }
     } catch(e) { handleAppError(e); }
     finally { $("#scanButton").disabled = false; showProgress(false); }
@@ -1163,9 +1437,9 @@
     const button = $("#battleUrlButton");
     try {
       button.disabled = true;
-      showAlert("URL Aを召喚しています。発見済みならENERGY 0です。");
+      showAlert("1PのURLを召喚中。発見済みならエナジー0です。");
       const a = await getPageSpeedCard($("#battleUrlA").value, $("#battleStrategy").value, false);
-      showAlert("URL Bを召喚しています。発見済みならENERGY 0です。");
+      showAlert("2PのURLを召喚中。発見済みならエナジー0です。");
       const b = await getPageSpeedCard($("#battleUrlB").value, $("#battleStrategy").value, false);
       showBattle(a,b,"URL_VS_URL","arena");
     } catch(e) { handleAppError(e); }
@@ -1184,7 +1458,7 @@
     $("#clearHistoryButton").onclick = () => {
       if (confirm("ローカル戦歴をすべて削除しますか？")) { saveJson(LS.history, []); renderHistory(); }
     };
-    $("#battleDialogClose").onclick = () => $("#battleDialog").close();
+    $("#battleDialogClose").onclick = () => { battlePlaybackId++; $("#battleDialog").close(); };
     $("#externalCancel").onclick = () => { pendingExternalUrl = null; $("#externalDialog").close(); };
     $("#externalOpen").onclick = actuallyOpenExternal;
     $("#cardNameCancel").onclick = () => {

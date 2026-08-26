@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "url-battler-scan",
+  "main": "worker/worker.js",
+  "compatibility_date": "2026-08-26",
+  "workers_dev": true,
+  "route": {
+    "pattern": "yu-zora.com/games/url-battler*",
+    "zone_name": "yu-zora.com"
+  },
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
+    "binding": "ASSETS",
+    "run_worker_first": ["/games/url-battler/api/*"]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "SCAN_CACHE",
+      "id": "b5e8a96af8834c3b88c81829534f16b9"
+    }
+  ],
+  "vars": {
+    "APP_BASE_PATH": "/games/url-battler",
+    "ALLOWED_ORIGINS": "https://yu-zora.com,http://localhost:8787,http://127.0.0.1:8787,http://localhost:8000,http://127.0.0.1:8000"
+  },
+  "observability": { "enabled": true }
+}
