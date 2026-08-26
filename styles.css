@@ -33,3 +33,206 @@ dialog{color:var(--ink);background:var(--paper);border:3px solid var(--ink);bord
 footer{margin-top:16px;padding:20px 4px 0;display:flex;justify-content:space-between;gap:18px;border-top:2px solid rgba(23,32,43,.18)}footer a{color:var(--ink);font-weight:1000;font-size:10px}footer p{margin:0;max-width:760px;font-size:8px;color:var(--muted);font-weight:700;line-height:1.6;text-align:right}
 @media(max-width:900px){.hero-pop{grid-template-columns:1fr}.hero-burst{display:none}.hero-grid,.card-grid{grid-template-columns:1fr}.stat-guide{grid-template-columns:repeat(3,1fr)}.battle-stage{grid-template-columns:1fr 90px 1fr;padding:18px 10px}.reason-grid{grid-template-columns:1fr}.header-status{gap:5px}.status-ticket{min-width:86px;padding:8px}}
 @media(max-width:650px){.app-shell{width:min(100% - 16px,1180px)}.site-header{height:auto;padding:14px 0;align-items:flex-start}.header-status{display:grid;grid-template-columns:repeat(3,1fr);width:100%}.site-header{flex-direction:column}.hero-copy{padding:28px 20px}.hero-pop h1{font-size:57px}.hero-pop h1 b{display:block;margin:3px 0 0}.tabs{grid-template-columns:repeat(5,auto);overflow-x:auto;padding-bottom:5px}.tab{min-width:105px}.hero-grid{gap:12px}.panel{padding:15px}.url-row{grid-template-columns:1fr}.energy-panel{grid-template-columns:1fr}.energy-orbs{justify-content:flex-start}.stat-guide{grid-template-columns:1fr 1fr}.versus-inputs{grid-template-columns:1fr}.vs-mark{text-align:center}.battle-stage{grid-template-columns:1fr;gap:10px;padding:17px}.battle-center{order:2}.battle-fighter.right{order:3}.battle-fighter.left{order:1}.fighter-sigil{width:48px;height:48px}.history-item{grid-template-columns:1fr;gap:3px}.winner-strip{grid-template-columns:1fr auto}footer{flex-direction:column}footer p{text-align:left}.stats{gap:3px}.statbox strong{font-size:14px}.site-card{padding:13px}.card-name{font-size:17px}}
+
+
+/* v0.6: monster card / click-safe layers */
+.card-stage::before,
+.card-stage:before,
+.battle-stage::before,
+.battle-stage:before {
+  pointer-events: none;
+}
+.card-stage > * {
+  position: relative;
+  z-index: 1;
+}
+.header-status { grid-template-columns: repeat(3, minmax(112px,1fr)); }
+
+.site-card {
+  width: min(100%, 500px);
+}
+.card-core {
+  display:grid;
+  grid-template-columns: 92px 1fr;
+  gap:10px;
+  align-items:center;
+  margin:14px 0 12px;
+  position:relative;
+  z-index:1;
+}
+.card-core .card-bp {
+  display:block;
+  margin:0;
+  text-align:left;
+}
+.card-core .card-bp small { display:block; margin-bottom:3px; }
+.card-core .card-bp strong { font-size:44px; }
+.monster-panel {
+  min-height:118px;
+  display:grid;
+  grid-template-columns:118px 1fr;
+  align-items:center;
+  border:2px solid var(--ink);
+  border-radius:13px;
+  background:linear-gradient(145deg,rgba(255,255,255,.96),rgba(255,246,198,.95));
+  overflow:hidden;
+  box-shadow:3px 3px 0 rgba(23,32,43,.18);
+}
+.monster-art {
+  height:116px;
+  display:grid;
+  place-items:center;
+  background:radial-gradient(circle at 50% 58%,rgba(97,201,255,.24),transparent 63%);
+}
+.monster-art img {
+  width:108px;
+  height:108px;
+  object-fit:contain;
+  image-rendering:auto;
+  filter:drop-shadow(0 5px 3px rgba(23,32,43,.18));
+}
+.monster-info { padding:9px 9px 9px 2px; min-width:0; }
+.monster-info small {
+  display:block;
+  font-size:7px;
+  font-weight:1000;
+  color:var(--pink);
+  margin-bottom:2px;
+}
+.monster-info strong {
+  display:block;
+  font-size:13px;
+  line-height:1.15;
+  overflow-wrap:anywhere;
+}
+.monster-info span {
+  display:block;
+  font-size:7px;
+  color:var(--muted);
+  font-weight:900;
+  margin-top:5px;
+}
+.statbox { position:relative; padding-top:6px; }
+.stat-icon {
+  display:block;
+  width:24px;
+  height:24px;
+  object-fit:contain;
+  margin:0 auto 2px;
+  filter:drop-shadow(1px 2px 0 rgba(23,32,43,.16));
+}
+.skill {
+  display:grid;
+  grid-template-columns:28px auto 1fr;
+  align-items:center;
+}
+.skill-icon {
+  width:25px;
+  height:25px;
+  object-fit:contain;
+  filter:drop-shadow(1px 2px 0 rgba(23,32,43,.12));
+}
+.skill span { justify-self:end; }
+
+.fighter-monster {
+  margin-top:10px;
+  min-height:145px;
+  position:relative;
+  display:grid;
+  place-items:center;
+  border:2px solid var(--ink);
+  border-radius:12px;
+  background:linear-gradient(180deg,#eaf8ff,#fff6c8);
+  overflow:hidden;
+}
+.fighter-monster::after {
+  content:"";
+  position:absolute;
+  width:150px;height:28px;
+  left:50%;bottom:29px;transform:translateX(-50%);
+  background:rgba(23,32,43,.10);
+  border-radius:50%;
+  filter:blur(4px);
+}
+.fighter-monster img {
+  position:relative;
+  z-index:2;
+  width:138px;
+  height:118px;
+  object-fit:contain;
+  margin-top:-10px;
+  filter:drop-shadow(0 6px 3px rgba(23,32,43,.20));
+}
+.battle-fighter.right .fighter-monster img { transform:scaleX(-1); }
+.fighter-monster > div {
+  position:absolute;
+  z-index:3;
+  left:7px;right:7px;bottom:5px;
+  display:flex;
+  justify-content:space-between;
+  align-items:end;
+  gap:5px;
+  padding:5px 7px;
+  background:rgba(255,255,255,.88);
+  border:1px solid var(--ink);
+  border-radius:7px;
+}
+.fighter-monster b { font-size:8px; }
+.fighter-monster span { font-size:7px; color:var(--muted); font-weight:900; text-align:right; }
+
+.battle-effect-art {
+  position:absolute;
+  left:50%;
+  top:47%;
+  width:270px;
+  height:270px;
+  transform:translate(-50%,-50%);
+  z-index:7;
+  pointer-events:none;
+  opacity:0;
+}
+.battle-effect-art img {
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  filter:drop-shadow(0 0 12px rgba(255,255,255,.85));
+}
+.battle-effect-art.show { animation:effectArtPop .58s ease; }
+@keyframes effectArtPop {
+  0% { opacity:0; transform:translate(-50%,-50%) scale(.35) rotate(-8deg); }
+  24% { opacity:1; transform:translate(-50%,-50%) scale(1.12) rotate(2deg); }
+  70% { opacity:.95; transform:translate(-50%,-50%) scale(.98); }
+  100% { opacity:0; transform:translate(-50%,-55%) scale(1.08); }
+}
+.battle-fx { z-index:10; }
+
+.winner-strip {
+  grid-template-columns:1fr 110px 86px;
+  align-items:center;
+}
+.winner-monster {
+  width:105px;
+  height:95px;
+  object-fit:contain;
+  filter:drop-shadow(0 5px 3px rgba(23,32,43,.18));
+}
+.winner-monster-name {
+  margin:5px 0 0;
+  font-size:9px;
+  font-weight:900;
+  color:var(--muted);
+}
+
+@media(max-width:650px) {
+  .header-status { grid-template-columns:repeat(3,1fr); }
+  .card-core { grid-template-columns:76px 1fr; }
+  .monster-panel { grid-template-columns:92px 1fr; min-height:98px; }
+  .monster-art { height:96px; }
+  .monster-art img { width:88px; height:88px; }
+  .card-core .card-bp strong { font-size:37px; }
+  .stat-icon { width:20px; height:20px; }
+  .skill { grid-template-columns:24px auto 1fr; }
+  .skill-icon { width:21px; height:21px; }
+  .winner-strip { grid-template-columns:1fr 80px 70px; }
+  .winner-monster { width:76px; height:70px; }
+}

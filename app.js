@@ -7,7 +7,7 @@
   const DAILY_ENERGY_MAX = 5;
   const MAX_CARDS = 5;
   const MAX_HISTORY = 100;
-  const BALANCE_VERSION = 4;
+  const BALANCE_VERSION = 6;
   let battlePlaybackId = 0;
 
   const LS = {
@@ -249,7 +249,7 @@
       setApiState("OFFLINE");
       throw new AppError(
         "SCANNER_OFFLINE",
-        "スキャナーURLが未設定です。config.js の scanEndpoint にCloudflare Workerの /scan URLを設定してください。"
+        "いまは新しいURLを探索できません。少し時間をおいてもう一度お試しください。"
       );
     }
 
@@ -260,8 +260,8 @@
 
     setApiState("測定中");
     showProgress(true, "サイト召喚中...", energy.remaining > 0
-      ? "発見済みならエナジー0、未発見なら測定成功時に1消費します。"
-      : "エナジー0のため、みんなの発見済みキャッシュだけを探します。");
+      ? "みんなが発見済みなら消費なし。未発見なら探索エナジーを1使います。"
+      : "探索エナジーが0なので、みんなが発見済みのURLだけ探します。");
 
     let response, payload;
     try {
@@ -281,7 +281,7 @@
       try { payload = JSON.parse(text); } catch { payload = { message: text }; }
     } catch (err) {
       setApiState("通信失敗");
-      throw new AppError("NETWORK", "URL BATTLERスキャナーへ接続できませんでした。保存済みカードやURL RUSHは遊べます。", err);
+      throw new AppError("NETWORK", "新しいURLを探索できませんでした。保存したカードでの対戦は遊べます。", err);
     } finally {
       showProgress(false);
     }
@@ -290,7 +290,7 @@
       throw parseScannerError(response.status, payload);
     }
     if (!payload?.ok || !payload?.scan) {
-      throw new AppError("SCAN_FAILED", "スキャナーから有効な計測結果を取得できませんでした。");
+      throw new AppError("SCAN_FAILED", "このURLの強さをうまく判定できませんでした。");
     }
 
     const cacheStatus = String(payload.cacheStatus || "MISS").toUpperCase();
@@ -324,23 +324,23 @@
       setApiState("混雑中");
       return new AppError(
         "SCANNER_LIMIT",
-        "スキャナーが混み合っているため、新しいURLの計測を現在受け付けられません。発見済みカード・保存カード・URL RUSHは遊べます。"
+        "新しいURLの探索が混み合っています。発見済みカードや保存カードでの対戦は遊べます。"
       );
     }
     if (status === 403) {
       setApiState("利用不可");
-      return new AppError("DENIED", "このゲームからスキャナーを利用できません。公開設定を確認してください。");
+      return new AppError("DENIED", "いまは新しいURLを探索できません。しばらくしてからお試しください。");
     }
     if (status === 400 || status === 422) {
       setApiState("測定不可");
-      return new AppError("SCAN_REJECTED", message || "このURLは計測できませんでした。");
+      return new AppError("SCAN_REJECTED", message || "このURLはカードにできませんでした。");
     }
     if (status >= 500) {
       setApiState("混雑中");
-      return new AppError("SERVICE", "スキャナーが一時的に利用できません。保存カードでの対戦は遊べます。");
+      return new AppError("SERVICE", "新しいURLの探索を一時休止しています。保存カードでの対戦は遊べます。");
     }
     setApiState("エラー");
-    return new AppError("API", message || `スキャナーエラー (${status})`);
+    return new AppError("API", message || "URLを探索できませんでした。");
   }
 
   function buildCard(requestedUrl, strategy, payload) {
@@ -564,6 +564,135 @@
     return CLASS_LABELS[key] || "ウェブ型";
   }
   function classSigil(card) { return CLASS_SIGILS[card?.className] || "網"; }
+
+  const MONSTER_POOL = Array.isArray(window.URLB_MONSTERS) ? window.URLB_MONSTERS : [];
+  const ICONS = window.URLB_ICON_MAP || {};
+  const STAT_ICON_KEYS = { hp:"hp", atk:"atk", def:"def", spd:"spd", tec:"tec" };
+  const SKILL_EFFECTS = {
+    "神速":"./assets/effects/fx-wind-ai.png",
+    "古代HTML":"./assets/effects/fx_phys_neutral_chain.png",
+    "重装要塞":"./assets/effects/fx_phys_smash_impact.png",
+    "画像弾幕":"./assets/effects/fx_phys_ranged_volley.png",
+    "魔術過積載":"./assets/effects/fx-spell-chaos-ai.png",
+    "無の境地":"./assets/effects/fx_spell_dark.png",
+    "三重結界":"./assets/effects/fx_support_buff.png",
+    "第三者召喚":"./assets/effects/fx_support_buff.png",
+    "DOM迷宮":"./assets/effects/fx_special_rupture.png",
+    "鉄壁":"./assets/effects/fx_support_buff.png",
+    "CSS甲冑":"./assets/effects/fx_support_buff.png",
+    "巨大生命":"./assets/effects/fx_support_heal_radiance.png",
+    "静寂のページ":"./assets/effects/fx-light-ai.png",
+    "揺らぐ大地":"./assets/effects/fx-neutral-smash-ai.png"
+  };
+  const CLASS_EFFECTS = {
+    STATIC:"./assets/effects/fx-wind-ai.png",
+    GUARD:"./assets/effects/fx_phys_slash_arc.png",
+    APP:"./assets/effects/fx_spell_light.png",
+    MEDIA:"./assets/effects/fx_phys_ranged_volley.png",
+    TANK:"./assets/effects/fx_phys_smash_impact.png",
+    PORTAL:"./assets/effects/fx_special_rupture.png",
+    ARCHIVE:"./assets/effects/fx_phys_neutral_chain.png",
+    DESIGN:"./assets/effects/fx_phys_slash_arc.png",
+    LEGACY:"./assets/effects/fx-wind-ai.png",
+    SUMMONER:"./assets/effects/fx-spell-chaos-ai.png",
+    TITAN:"./assets/effects/fx_phys_smash_impact.png",
+    CLOUD:"./assets/effects/fx-thunder-ai.png",
+    MAZE:"./assets/effects/fx_special_rupture.png",
+    WEB:"./assets/effects/fx_phys_slash_arc.png"
+  };
+  const SKILL_MOVE_NAMES = {
+    "神速":"先駆け",
+    "画像弾幕":"雨垂れ突き",
+    "揺らぐ大地":"蒼天落とし",
+    "魔術過積載":"イグナリス"
+  };
+
+  function stableHashInt(text) {
+    let h = 2166136261;
+    for (const ch of String(text || "")) {
+      h ^= ch.charCodeAt(0);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  function targetMonsterRank(bp) {
+    const x = clamp((Number(bp || 0) - 280) / 650, 0, 1);
+    return Math.max(1, Math.min(200, Math.round(1 + 199 * Math.pow(x, 1.28))));
+  }
+
+  function preferredMonsterRaces(card) {
+    const s = card?.stats || {};
+    const entries = [
+      ["hp", s.hp || 0], ["atk", s.atk || 0], ["def", s.def || 0],
+      ["spd", s.spd || 0], ["tec", s.tec || 0]
+    ].sort((a,b)=>b[1]-a[1]);
+    const top = entries[0]?.[0];
+    if (top === "hp") return ["竜","無生物","粘体","植物"];
+    if (top === "atk") return ["獣","獣人","竜","人"];
+    if (top === "def") return ["無生物","機械","竜","死霊"];
+    if (top === "spd") return ["獣","精霊","魔族","獣人"];
+    return ["精霊","魔族","機械","死霊"];
+  }
+
+  function monsterForCard(card) {
+    if (!MONSTER_POOL.length) return null;
+    const bp = Number(card?.bp || 0);
+    const target = targetMonsterRank(bp);
+    let pool;
+    if (bp >= 955) {
+      pool = MONSTER_POOL.filter(m => m.special);
+    } else if (bp >= 895) {
+      pool = MONSTER_POOL.filter(m => m.boss && m.rank >= Math.max(120, target - 30));
+    } else if (bp >= 845) {
+      pool = MONSTER_POOL.filter(m => (m.boss || m.rare || (!m.boss && m.rank >= 170)) && m.rank <= 220);
+    } else {
+      pool = MONSTER_POOL.filter(m => !m.boss && !m.special && m.rank <= 200 && Math.abs(m.rank - target) <= 22);
+    }
+    if (!pool.length) pool = MONSTER_POOL.filter(m => !m.special && Math.abs(Math.min(m.rank,200) - target) <= 35);
+    if (!pool.length) pool = MONSTER_POOL;
+
+    const preferred = preferredMonsterRaces(card);
+    const seed = stableHashInt(`${card?.url || card?.id || ""}|${card?.strategy || ""}|${Math.round(bp/10)}`);
+    let best = null;
+    let bestScore = Infinity;
+    for (const m of pool) {
+      const rankGap = Math.abs(Math.min(m.rank, 200) - target);
+      const raceBonus = preferred.includes(m.race) ? -18 : 0;
+      const bossBonus = bp >= 895 && m.boss ? -14 : 0;
+      const jitter = stableHashInt(`${seed}|${m.id}`) % 21;
+      const score = rankGap * 3 + raceBonus + bossBonus + jitter;
+      if (score < bestScore) { best = m; bestScore = score; }
+    }
+    return best || pool[seed % pool.length];
+  }
+
+  function monsterBadge(monster) {
+    if (!monster) return "";
+    if (monster.special) return "伝説級";
+    if (monster.boss) return "ボス級";
+    if (monster.rare) return "レア";
+    if (monster.rank >= 170) return "超上級";
+    if (monster.rank >= 120) return "上級";
+    if (monster.rank >= 70) return "中級";
+    return "初級";
+  }
+
+  function skillIcon(skill) {
+    const key = skill?.id || "normal";
+    return ICONS[key] || ICONS.normal || "";
+  }
+
+  function statIcon(key) {
+    return ICONS[STAT_ICON_KEYS[key]] || "";
+  }
+
+  function effectForEvent(event, attackerCard) {
+    if (event?.skillName && SKILL_EFFECTS[event.skillName]) return SKILL_EFFECTS[event.skillName];
+    if (event?.critical) return "./assets/effects/fx_special_rupture.png";
+    if (event?.techAttack) return "./assets/effects/fx_spell_light.png";
+    return CLASS_EFFECTS[attackerCard?.className] || "./assets/effects/fx_phys_slash_arc.png";
+  }
   function saveCard(card) {
     const cards = getCards();
     const same = cards.findIndex(c => c.id === card.id || (c.url === card.url && c.strategy === card.strategy));
@@ -580,12 +709,12 @@
     }
     cards.push({ ...card, siteName: card.siteName || card.domain, savedAt: now() });
     setCards(cards);
-    showAlert("カードをローカル保存しました。", "success");
+    showAlert("お気に入りに保存しました。", "success");
     return true;
   }
 
   function removeCard(id) {
-    if (!confirm("このカードをローカル保存から削除しますか？")) return;
+    if (!confirm("このカードを手持ちから外しますか？")) return;
     setCards(getCards().filter(c => c.id !== id));
   }
 
@@ -634,12 +763,24 @@
   function cardHtml(card, opts = {}) {
     const [a,b] = cardColors(card);
     const path = card.path || (() => { try { const u = new URL(card.url); return u.pathname + u.search; } catch { return "/"; } })();
-    const date = card.capturedAt ? new Date(card.capturedAt).toLocaleString("ja-JP", {month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}) : "NPC";
+    const date = card.capturedAt ? new Date(card.capturedAt).toLocaleString("ja-JP", {month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}) : "ライバル";
     const source =
-      card.source === "local-cache" ? "自分の発見済み" :
-      card.source === "shared-cache" ? "みんなの発見済み" :
+      card.source === "local-cache" ? "発見済み" :
+      card.source === "shared-cache" ? "みんなが発見済み" :
       card.source === "new-scan" ? "新発見" :
-      card.source === "npc" ? "NPC" : "測定";
+      card.source === "npc" ? "ライバル" : "カード";
+    const monster = monsterForCard(card);
+    const monsterHtml = monster ? `
+      <div class="monster-panel">
+        <div class="monster-art">
+          <img src="${esc(monster.image)}" alt="${esc(monster.name)}" loading="lazy" />
+        </div>
+        <div class="monster-info">
+          <small>相棒モンスター</small>
+          <strong>${esc(monster.name)}</strong>
+          <span>Rank ${fmt(monster.rank)} / ${esc(monster.race)} / ${esc(monsterBadge(monster))}</span>
+        </div>
+      </div>` : "";
     return `
       <article class="site-card" style="--cardA:${a};--cardB:${b}">
         <div class="card-top">
@@ -650,23 +791,34 @@
           </div>
           <div class="class-badge">${esc(classLabel(card))}</div>
         </div>
-        <div class="card-bp"><small>戦闘力</small><strong>${fmt(card.bp)}</strong></div>
+        <div class="card-core">
+          <div class="card-bp"><small>戦闘力</small><strong>${fmt(card.bp)}</strong></div>
+          ${monsterHtml}
+        </div>
         <div class="stats">
-          ${statBox("耐久",card.stats.hp)}
-          ${statBox("火力",card.stats.atk)}
-          ${statBox("守備",card.stats.def)}
-          ${statBox("速さ",card.stats.spd)}
-          ${statBox("技術",card.stats.tec)}
+          ${statBox("hp","耐久",card.stats.hp)}
+          ${statBox("atk","火力",card.stats.atk)}
+          ${statBox("def","守備",card.stats.def)}
+          ${statBox("spd","速さ",card.stats.spd)}
+          ${statBox("tec","技術",card.stats.tec)}
         </div>
         <div class="skills">
-          ${(card.skills?.length ? card.skills : [{name:"ノーマル",desc:"目立った固有技なし"}]).map(s=>`
-            <div class="skill"><strong>${esc(s.name)}</strong><span>${esc(s.desc)}</span></div>
+          ${(card.skills?.length ? card.skills : [{id:"normal",name:"ノーマル",desc:"目立った固有技なし"}]).map(s=>`
+            <div class="skill">
+              <img class="skill-icon" src="${esc(skillIcon(s))}" alt="" />
+              <strong>${esc(s.name)}</strong><span>${esc(s.desc)}</span>
+            </div>
           `).join("")}
         </div>
-        <div class="card-meta"><span>${card.strategy === "mobile" ? "スマホ測定" : "PC測定"}</span><span>${source} / ${date}</span></div>
+        <div class="card-meta"><span>${card.strategy === "mobile" ? "スマホ版" : "PC版"}</span><span>${source} / ${date}</span></div>
       </article>`;
   }
-  function statBox(name, value) { return `<div class="statbox"><small>${name}</small><strong>${fmt(value)}</strong></div>`; }
+  function statBox(key, name, value) {
+    return `<div class="statbox">
+      <img class="stat-icon" src="${esc(statIcon(key))}" alt="" />
+      <small>${name}</small><strong>${fmt(value)}</strong>
+    </div>`;
+  }
   function esc(v) {
     return String(v ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
@@ -676,11 +828,11 @@
     if (m.isNpc) return "";
     return `
       <details class="scan-details">
-        <summary>このカードの測定データを見る</summary>
+        <summary>このカードの強さのもとを見る</summary>
         <p>
-          Performance ${m.perf ?? "—"} / Best Practices ${m.best ?? "—"} / 転送 ${fmtBytes(m.totalBytes)} / ${fmt(m.requestCount)}リクエスト<br>
+          表示評価 ${m.perf ?? "—"} / ページ評価 ${m.best ?? "—"} / 転送 ${fmtBytes(m.totalBytes)} / ${fmt(m.requestCount)}リクエスト<br>
           画像 ${fmt(m.imageCount)}枚 (${fmtBytes(m.imageBytes)}) / JS ${fmtBytes(m.scriptBytes)} / CSS ${fmtBytes(m.cssBytes)} / 外部ホスト ${fmt(m.thirdPartyDomains)} / DOM ${m.domNodes ? fmt(m.domNodes) : "n/a"}<br>
-          FCP ${m.fcp ? Math.round(m.fcp)+"ms" : "n/a"} / LCP ${m.lcp ? Math.round(m.lcp)+"ms" : "n/a"} / TBT ${m.tbt != null ? Math.round(m.tbt)+"ms" : "n/a"} / Lighthouse ${esc(m.lighthouseVersion || "?")}
+          FCP ${m.fcp ? Math.round(m.fcp)+"ms" : "n/a"} / LCP ${m.lcp ? Math.round(m.lcp)+"ms" : "n/a"} / TBT ${m.tbt != null ? Math.round(m.tbt)+"ms" : "n/a"}
         </p>
       </details>`;
   }
@@ -690,10 +842,10 @@
     area.classList.remove("showcase");
     const discovery =
       card.discoveryStatus === "NEW"
-        ? `<div class="discovery-banner new">★ 新発見! スキャンエナジー -1</div>`
+        ? `<div class="discovery-banner new">★ 新発見! 探索エナジー -1</div>`
         : card.discoveryStatus === "DISCOVERED"
-          ? `<div class="discovery-banner">♻ 発見済み! みんなのキャッシュからエナジー0で召喚</div>`
-          : `<div class="discovery-banner">✓ 自分の発見済みデータからエナジー0で召喚</div>`;
+          ? `<div class="discovery-banner">♻ みんなが発見済み! エナジー消費なし</div>`
+          : `<div class="discovery-banner">✓ 発見済み! エナジー消費なし</div>`;
     area.innerHTML = `
       <div>
         ${cardHtml(card)}
@@ -706,12 +858,12 @@
           <button class="secondary" id="battleLatestNpc">このカードで戦う</button>
           <button class="secondary" id="openLatestSite">元サイトを見る</button>
         </div>
-        <div class="share-note">SNSで見せるは画像保存＋短い投稿文をローカル生成します。対応端末では画像付きWeb Shareを使います。</div>
+        <div class="share-note">SNSで見せると、カード画像と短い投稿文をまとめて共有できます。</div>
       </div>`;
     $("#saveLatestCard").onclick = () => saveCard(card);
     $("#shareLatestCard").onclick = () => shareCard(card);
     $("#downloadLatestCard").onclick = () => downloadCardImage(card);
-    $("#battleLatestNpc").onclick = () => showBattle(card, randomNpc(), "NPC");
+    $("#battleLatestNpc").onclick = () => showBattle(card, randomNpc(), "ライバル");
     $("#openLatestSite").onclick = () => requestExternalOpen(card.url);
   }
 
@@ -730,7 +882,7 @@
             <button class="primary act-share">SNSで見せる</button>
             <button class="secondary act-image">画像</button>
             <button class="secondary act-name">名前変更</button>
-            <button class="secondary act-battle">NPC戦</button>
+            <button class="secondary act-battle">おまかせ対戦</button>
             <button class="secondary act-open">サイト</button>
             <button class="secondary act-rescan">最新に更新 ⚡1</button>
             <button class="danger ghost act-delete">削除</button>
@@ -741,7 +893,7 @@
         $(".act-share", el).onclick = () => shareCard(card);
         $(".act-image", el).onclick = () => downloadCardImage(card);
         $(".act-name", el).onclick = () => openCardNameEditor(card);
-        $(".act-battle", el).onclick = () => showBattle(card, randomNpc(), "NPC");
+        $(".act-battle", el).onclick = () => showBattle(card, randomNpc(), "ライバル");
         $(".act-open", el).onclick = () => requestExternalOpen(card.url);
         $(".act-delete", el).onclick = () => removeCard(card.id);
         $(".act-rescan", el).onclick = async () => {
@@ -895,7 +1047,10 @@
     defender.hp = Math.max(0, defender.hp - damage);
     attacker.damageDealt += damage;
     defender.damageTaken += damage;
-    const attackName = techAttack ? "コードバースト" : (ATTACK_NAMES[attacker.card.className] || "ウェブストライク");
+    const baseAttackName = techAttack ? "コードバースト" : (ATTACK_NAMES[attacker.card.className] || "ウェブストライク");
+    const attackName = skillName && SKILL_MOVE_NAMES[skillName]
+      ? `${SKILL_MOVE_NAMES[skillName]}・${skillName}`
+      : baseAttackName;
     const explain = `${techAttack ? "技術" : "火力"}${Math.round(offense)} vs 守備${Math.round(defense)}`;
     const text = `${displayName(attacker.card)}「${attackName}」→ ${damage}ダメージ${critical ? "! 会心!" : ""}`;
     events.push({
@@ -910,8 +1065,8 @@
       defender.hp = Math.max(0, defender.hp - extra);
       attacker.damageDealt += extra;
       defender.damageTaken += extra;
-      const extraText = `${displayName(attacker.card)}「画像弾幕」→ 追加${extra}ダメージ`;
-      events.push({ kind:"extra", turn, attackerId:attacker.card.id, defenderId:defender.card.id, attackName:"画像弾幕", damage:extra, hpAfter:defender.hp, maxHp:defender.maxHp, skillName:"画像弾幕", text:extraText });
+      const extraText = `${displayName(attacker.card)}「雨垂れ突き・画像弾幕」→ 追加${extra}ダメージ`;
+      events.push({ kind:"extra", turn, attackerId:attacker.card.id, defenderId:defender.card.id, attackName:"雨垂れ突き・画像弾幕", damage:extra, hpAfter:defender.hp, maxHp:defender.maxHp, skillName:"画像弾幕", text:extraText });
       log.push(extraText);
     }
   }
@@ -990,12 +1145,18 @@
   }
 
   function fighterBattleHtml(card, hp, side) {
+    const monster = monsterForCard(card);
     return `
       <div class="battle-fighter ${side === "A" ? "left" : "right"}" data-side="${side}">
         <div class="fighter-head">
           <div><small>${side === "A" ? "1P" : "2P"} / ${esc(classLabel(card))}</small><strong>${esc(displayName(card))}</strong></div>
           <span class="fighter-sigil">${esc(classSigil(card))}</span>
         </div>
+        ${monster ? `
+          <div class="fighter-monster">
+            <img src="${esc(monster.image)}" alt="${esc(monster.name)}" />
+            <div><b>${esc(monster.name)}</b><span>Rank ${fmt(monster.rank)} / ${esc(monster.race)}</span></div>
+          </div>` : ""}
         <div class="hp-line">
           <div class="hp-label"><span>HP</span><b class="hp-text">${fmt(hp)} / ${fmt(hp)}</b></div>
           <div class="hp-track"><div class="hp-fill"></div></div>
@@ -1007,15 +1168,16 @@
   function battleResultHtml(r) {
     return `
       <section class="battle-shell">
-        <div class="battle-top"><b>URLバトル 実況中</b><span>能力差 + 固有技 + 少量の乱数で決着</span></div>
+        <div class="battle-top"><b>URLバトル!</b><span>相棒と固有技が勝負を決める</span></div>
         <div class="battle-stage">
           ${fighterBattleHtml(r.cardA, r.fighterA.maxHp, "A")}
           <div class="battle-center">
-            <span class="turn-chip">READY</span>
-            <div class="battle-message">対戦データを読み込み中...</div>
+            <span class="turn-chip">開始!</span>
+            <div class="battle-message">まもなくバトル開始!</div>
             <button class="battle-skip" type="button">演出をスキップ</button>
           </div>
           ${fighterBattleHtml(r.cardB, r.fighterB.maxHp, "B")}
+          <div class="battle-effect-art" aria-hidden="true"><img alt="" /></div>
           <div class="battle-fx"></div><div class="skill-flash"></div>
         </div>
         <div class="battle-result hidden"></div>
@@ -1032,6 +1194,7 @@
     const msg = $(".battle-message", shell);
     const turnChip = $(".turn-chip", shell);
     const fx = $(".battle-fx", shell);
+    const effectArt = $(".battle-effect-art", shell);
     const flash = $(".skill-flash", shell);
     const skip = $(".battle-skip", shell);
     let skipNow = false;
@@ -1062,6 +1225,7 @@
         flash.classList.remove("on"); void flash.offsetWidth; flash.classList.add("on");
         msg.textContent = e.text;
         showBattleFx(fx, e.skill);
+        showBattleEffect(effectArt, SKILL_EFFECTS[e.skill] || "./assets/effects/fx_support_buff.png");
         await sleep(500);
         fighterEl?.classList.remove("lunge-left","lunge-right");
         continue;
@@ -1074,6 +1238,7 @@
         dEl?.classList.add(dSide === "A" ? "lunge-right" : "lunge-left");
         msg.textContent = e.text;
         showBattleFx(fx, "MISS!");
+        showBattleEffect(effectArt, "./assets/effects/fx-wind-ai.png");
         await sleep(430);
         aEl?.classList.remove("lunge-left","lunge-right"); dEl?.classList.remove("lunge-left","lunge-right");
         continue;
@@ -1090,7 +1255,9 @@
         spawnDamage(shell, dEl, `${e.critical ? "会心! " : ""}-${e.damage}`);
         msg.textContent = e.kind === "extra" ? e.text : `${e.text} / ${e.explain}`;
         if (e.skillName) showBattleFx(fx, e.skillName);
-        await sleep(e.kind === "extra" ? 390 : 470);
+        const attackerCard = e.attackerId === r.cardA.id ? r.cardA : r.cardB;
+        showBattleEffect(effectArt, effectForEvent(e, attackerCard));
+        await sleep(e.kind === "extra" ? 430 : 520);
         aEl?.classList.remove("lunge-left","lunge-right"); dEl?.classList.remove("hit");
       }
     }
@@ -1110,6 +1277,16 @@
     if (!el) return;
     el.textContent = text;
     el.classList.remove("show"); void el.offsetWidth; el.classList.add("show");
+  }
+
+  function showBattleEffect(el, src) {
+    if (!el || !src) return;
+    const img = $("img", el);
+    if (!img) return;
+    img.src = src;
+    el.classList.remove("show");
+    void el.offsetWidth;
+    el.classList.add("show");
   }
 
   function updateBattleHp(el, hp, maxHp) {
@@ -1135,7 +1312,10 @@
     resultEl.classList.remove("hidden");
     resultEl.innerHTML = `
       <div class="winner-strip">
-        <div><small>勝者 / ${r.turns}ターン</small><h3>${esc(displayName(r.winner))}</h3></div>
+        <div><small>勝者 / ${r.turns}ターン</small><h3>${esc(displayName(r.winner))}</h3>
+          ${monsterForCard(r.winner) ? `<p class="winner-monster-name">相棒 ${esc(monsterForCard(r.winner).name)} / Rank ${fmt(monsterForCard(r.winner).rank)}</p>` : ""}
+        </div>
+        ${monsterForCard(r.winner) ? `<img class="winner-monster" src="${esc(monsterForCard(r.winner).image)}" alt="${esc(monsterForCard(r.winner).name)}" />` : ""}
         <div class="winner-badge">勝<br>利!</div>
       </div>
       <div class="reason-grid">${r.reasons.map(x=>`<div class="reason-card"><b>${esc(x.title)}</b><span>${esc(x.detail)}</span></div>`).join("")}</div>
@@ -1143,7 +1323,7 @@
         <button class="primary result-share">SNSで結果共有</button>
         <button class="secondary result-download">結果画像を保存</button>
         <button class="secondary result-rematch">もう一戦</button>
-        <button class="secondary result-next hidden">次のNPCへ</button>
+        <button class="secondary result-next hidden">次の相手へ</button>
       </div>
       <details class="battle-log"><summary>詳しいバトルログを見る</summary>${r.log.map(x=>`<div class="log-line">${esc(x)}</div>`).join("")}</details>`;
     bindResultActions(resultEl, r, rush, target);
@@ -1186,11 +1366,13 @@
 
   function makeCardShareText(card) {
     const statLine = `戦闘力 ${card.bp}｜耐久${card.stats.hp} 火力${card.stats.atk} 守備${card.stats.def} 速さ${card.stats.spd} 技術${card.stats.tec}`;
+    const monster = monsterForCard(card);
+    const buddyLine = monster ? `相棒 ${monster.name} / Rank ${monster.rank}` : "";
     let name = displayName(card).slice(0, 42);
-    let text = `⚡強URL発見!「${name}」\n${statLine}\n${card.url}\n#URLバトラー\n${PUBLIC_APP_URL}`;
+    let text = `⚡強URL発見!「${name}」\n${statLine}${buddyLine ? `\n${buddyLine}` : ""}\n${card.url}\n#URLバトラー\n${PUBLIC_APP_URL}`;
     while (xWeightedEstimate(text) > 270 && name.length > 8) {
       name = `${name.slice(0,-2)}…`;
-      text = `⚡強URL発見!「${name}」\n${statLine}\n${card.url}\n#URLバトラー\n${PUBLIC_APP_URL}`;
+      text = `⚡強URL発見!「${name}」\n${statLine}${buddyLine ? `\n${buddyLine}` : ""}\n${card.url}\n#URLバトラー\n${PUBLIC_APP_URL}`;
     }
     return text;
   }
@@ -1232,45 +1414,78 @@
     }
   }
 
-  function makeCardImage(card) {
+  function loadCanvasImage(src) {
     return new Promise(resolve => {
-      const c = document.createElement("canvas");
-      c.width = 1200; c.height = 630;
-      const x = c.getContext("2d");
-      const [,accent] = cardColors(card);
-
-      x.fillStyle = "#bfe8ff"; x.fillRect(0,0,1200,630);
-      x.fillStyle = "#fff9ea"; roundRect(x,34,30,1132,570,28); x.fill();
-      x.lineWidth=6; x.strokeStyle="#17202b"; x.stroke();
-      x.fillStyle = "#ffd83d"; x.fillRect(34,30,1132,72);
-      x.fillStyle = "#17202b"; x.font = "900 27px sans-serif"; x.fillText("URLバトラー / 強URLカード", 72,77);
-
-      x.fillStyle = accent; x.globalAlpha=.18; x.beginPath(); x.arc(1050,175,170,0,Math.PI*2); x.fill(); x.globalAlpha=1;
-      x.fillStyle="#ff5e9f"; x.font="900 72px sans-serif"; x.fillText(String(card.bp),72,216);
-      x.fillStyle="#17202b"; x.font="900 20px sans-serif"; x.fillText("戦闘力",76,246);
-
-      x.fillStyle="#17202b"; x.font="900 52px sans-serif"; fitText(x, displayName(card), 300, 176, 780);
-      x.fillStyle="#208cff"; x.font="800 21px sans-serif"; x.fillText(compactUrlForImage(card.url,82),300,216);
-      x.fillStyle="#17202b"; x.font="900 18px sans-serif"; x.fillText(`${classLabel(card)} / ${card.strategy === "mobile" ? "スマホ測定" : "PC測定"}`,300,250);
-
-      const labels=["耐久","火力","守備","速さ","技術"];
-      const vals=[card.stats.hp,card.stats.atk,card.stats.def,card.stats.spd,card.stats.tec];
-      const fills=["#fff0df","#ffe2ef","#e0f3ff","#fff6bd","#eee8ff"];
-      labels.forEach((lab,i)=>{
-        const px=72+i*212;
-        x.fillStyle=fills[i]; roundRect(x,px,304,188,112,14); x.fill(); x.lineWidth=4; x.strokeStyle="#17202b"; x.stroke();
-        x.fillStyle="#667085"; x.font="900 17px sans-serif"; x.fillText(lab,px+16,337);
-        x.fillStyle="#17202b"; x.font="900 46px sans-serif"; x.fillText(String(vals[i]),px+16,391);
-      });
-
-      const skills=(card.skills||[]).map(s=>s.name).slice(0,3);
-      x.fillStyle="#17202b"; x.font="900 19px sans-serif"; x.fillText(`固有技  ${skills.length?skills.join(" / "):"ノーマル"}`,72,468);
-      x.fillStyle="#667085"; x.font="700 17px sans-serif"; x.fillText(compactUrlForImage(card.domain,60),72,504);
-      x.fillStyle="#ff5e9f"; x.font="900 24px sans-serif"; x.fillText("#URLバトラー",72,557);
-      x.fillStyle="#17202b"; x.font="700 16px sans-serif"; x.fillText(compactUrlForImage(PUBLIC_APP_URL,88),260,557);
-
-      c.toBlob(blob => resolve(blob), "image/png");
+      if (!src) return resolve(null);
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
     });
+  }
+
+  function canvasBlob(canvas) {
+    return new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+  }
+
+  function drawImageContain(ctx, img, x, y, w, h) {
+    if (!img) return;
+    const scale = Math.min(w / img.width, h / img.height);
+    const dw = img.width * scale, dh = img.height * scale;
+    ctx.drawImage(img, x + (w-dw)/2, y + (h-dh)/2, dw, dh);
+  }
+
+  async function makeCardImage(card) {
+    const c = document.createElement("canvas");
+    c.width = 1200; c.height = 630;
+    const x = c.getContext("2d");
+    const monster = monsterForCard(card);
+    const monsterImg = await loadCanvasImage(monster?.image);
+    const [,accent] = cardColors(card);
+
+    x.fillStyle = "#bfe8ff"; x.fillRect(0,0,1200,630);
+    x.fillStyle = "#fff9ea"; roundRect(x,32,24,1136,582,30); x.fill();
+    x.lineWidth=6; x.strokeStyle="#17202b"; x.stroke();
+
+    x.fillStyle = "#ffd83d"; roundRect(x,46,38,1108,66,17); x.fill();
+    x.fillStyle = "#17202b"; x.font = "900 26px sans-serif"; x.fillText("URLバトラー",72,80);
+    x.textAlign="right"; x.font="900 19px sans-serif"; x.fillText("強URLカード",1125,79); x.textAlign="left";
+
+    x.fillStyle="#17202b"; x.font="900 52px sans-serif"; fitText(x, displayName(card), 70, 164, 620);
+    x.fillStyle="#208cff"; x.font="800 20px sans-serif"; x.fillText(compactUrlForImage(card.url,68),70,202);
+    x.fillStyle="#667085"; x.font="900 17px sans-serif";
+    x.fillText(`${classLabel(card)} / ${card.strategy === "mobile" ? "スマホ版" : "PC版"}`,70,232);
+
+    x.fillStyle="#ff5e9f"; x.font="900 82px sans-serif"; x.fillText(String(card.bp),70,330);
+    x.fillStyle="#17202b"; x.font="900 19px sans-serif"; x.fillText("戦闘力",74,356);
+
+    const skills=(card.skills||[]).map(s=>s.name).slice(0,3);
+    x.fillStyle="#17202b"; x.font="900 18px sans-serif";
+    x.fillText(`固有技  ${skills.length?skills.join(" / "):"ノーマル"}`,70,401);
+
+    if (monster) {
+      x.fillStyle=accent; x.globalAlpha=.16; x.beginPath(); x.arc(940,250,190,0,Math.PI*2); x.fill(); x.globalAlpha=1;
+      drawImageContain(x, monsterImg, 760,112,350,285);
+      x.fillStyle="#17202b"; x.font="900 25px sans-serif"; x.textAlign="center"; x.fillText(monster.name,935,417);
+      x.fillStyle="#667085"; x.font="800 16px sans-serif";
+      x.fillText(`相棒モンスター / Rank ${monster.rank} / ${monster.race} / ${monsterBadge(monster)}`,935,445);
+      x.textAlign="left";
+    }
+
+    const labels=["耐久","火力","守備","速さ","技術"];
+    const vals=[card.stats.hp,card.stats.atk,card.stats.def,card.stats.spd,card.stats.tec];
+    const fills=["#fff0df","#ffe2ef","#e0f3ff","#fff6bd","#eee8ff"];
+    labels.forEach((lab,i)=>{
+      const px=70+i*210;
+      x.fillStyle=fills[i]; roundRect(x,px,470,188,82,13); x.fill();
+      x.lineWidth=4; x.strokeStyle="#17202b"; x.stroke();
+      x.fillStyle="#667085"; x.font="900 15px sans-serif"; x.fillText(lab,px+14,497);
+      x.fillStyle="#17202b"; x.font="900 38px sans-serif"; x.fillText(String(vals[i]),px+14,538);
+    });
+
+    x.fillStyle="#ff5e9f"; x.font="900 22px sans-serif"; x.fillText("#URLバトラー",70,586);
+    x.fillStyle="#17202b"; x.font="700 15px sans-serif"; x.fillText(compactUrlForImage(PUBLIC_APP_URL,80),250,585);
+    return canvasBlob(c);
   }
 
   async function downloadResultImage(r) {
@@ -1283,7 +1498,8 @@
   }
 
   async function shareResult(r) {
-    const text = `⚔ URLバトラー!「${displayName(r.winner)}」勝利! ${r.turns}ターン決着 / 戦闘力${r.winner.bp} #URLバトラー ${PUBLIC_APP_URL}`;
+    const wm = monsterForCard(r.winner);
+    const text = `⚔ URLバトラー!「${displayName(r.winner)}」勝利! ${r.turns}ターン決着 / 戦闘力${r.winner.bp}${wm ? ` / 相棒 ${wm.name}` : ""} #URLバトラー ${PUBLIC_APP_URL}`;
     const blob = await makeResultImage(r);
     const file = new File([blob], `url-battler-${r.id}.png`, {type:"image/png"});
     try {
@@ -1300,37 +1516,48 @@
     }
   }
 
-  function makeResultImage(r) {
-    return new Promise(resolve => {
-      const c=document.createElement("canvas"); c.width=1200; c.height=630;
-      const x=c.getContext("2d");
-      x.fillStyle="#ffd83d"; x.fillRect(0,0,1200,630);
-      x.fillStyle="#fff9ea"; roundRect(x,34,30,1132,570,28); x.fill();
-      x.lineWidth=6; x.strokeStyle="#17202b"; x.stroke();
-      x.fillStyle="#61c9ff"; x.fillRect(34,30,1132,74);
-      x.fillStyle="#17202b"; x.font="900 26px sans-serif"; x.fillText("URLバトラー / 対戦結果",72,78);
+  async function makeResultImage(r) {
+    const c=document.createElement("canvas"); c.width=1200; c.height=630;
+    const x=c.getContext("2d");
+    const monster=monsterForCard(r.winner);
+    const monsterImg=await loadCanvasImage(monster?.image);
 
-      x.fillStyle="#ff5e9f"; x.font="900 70px sans-serif"; x.fillText("勝利!",72,184);
-      x.fillStyle="#17202b"; x.font="900 52px sans-serif"; fitText(x,displayName(r.winner),270,180,840);
-      x.fillStyle="#667085"; x.font="800 20px sans-serif"; x.fillText(`${r.turns}ターン決着 / 戦闘力 ${r.winner.bp}`,274,216);
+    x.fillStyle="#ffd83d"; x.fillRect(0,0,1200,630);
+    x.fillStyle="#fff9ea"; roundRect(x,32,24,1136,582,30); x.fill();
+    x.lineWidth=6; x.strokeStyle="#17202b"; x.stroke();
 
-      const labels=["耐久","火力","守備","速さ","技術"];
-      const vals=[r.winner.stats.hp,r.winner.stats.atk,r.winner.stats.def,r.winner.stats.spd,r.winner.stats.tec];
-      const fills=["#fff0df","#ffe2ef","#e0f3ff","#fff6bd","#eee8ff"];
-      labels.forEach((lab,i)=>{
-        const px=72+i*212; x.fillStyle=fills[i]; roundRect(x,px,264,188,105,14); x.fill(); x.lineWidth=4; x.strokeStyle="#17202b"; x.stroke();
-        x.fillStyle="#667085"; x.font="900 16px sans-serif"; x.fillText(lab,px+15,295);
-        x.fillStyle="#17202b"; x.font="900 43px sans-serif"; x.fillText(String(vals[i]),px+15,347);
-      });
+    x.fillStyle="#61c9ff"; roundRect(x,46,38,1108,66,17); x.fill();
+    x.fillStyle="#17202b"; x.font="900 25px sans-serif"; x.fillText("URLバトラー / 対戦結果",72,80);
 
-      const reason=r.reasons?.[0];
-      x.fillStyle="#17202b"; x.font="900 23px sans-serif"; x.fillText(`勝因：${reason?.title || "総合力"}`,72,426);
-      x.fillStyle="#667085"; x.font="700 18px sans-serif"; x.fillText(reason?.detail || "能力と固有技の組み合わせ",72,458);
-      x.fillStyle="#17202b"; x.font="800 18px sans-serif"; x.fillText(`${displayName(r.cardA)}  VS  ${displayName(r.cardB)}`,72,505);
-      x.fillStyle="#ff5e9f"; x.font="900 24px sans-serif"; x.fillText("#URLバトラー",72,557);
-      x.fillStyle="#17202b"; x.font="700 16px sans-serif"; x.fillText(compactUrlForImage(PUBLIC_APP_URL,88),260,557);
-      c.toBlob(blob=>resolve(blob),"image/png");
+    x.fillStyle="#ff5e9f"; x.font="900 68px sans-serif"; x.fillText("勝利!",70,178);
+    x.fillStyle="#17202b"; x.font="900 48px sans-serif"; fitText(x,displayName(r.winner),260,176,560);
+    x.fillStyle="#667085"; x.font="800 19px sans-serif"; x.fillText(`${r.turns}ターン決着 / 戦闘力 ${r.winner.bp}`,264,210);
+
+    if (monster) {
+      x.fillStyle="#fff0c7"; x.beginPath(); x.arc(965,265,180,0,Math.PI*2); x.fill();
+      drawImageContain(x,monsterImg,790,112,340,300);
+      x.fillStyle="#17202b"; x.textAlign="center"; x.font="900 24px sans-serif"; x.fillText(monster.name,960,420);
+      x.fillStyle="#667085"; x.font="800 15px sans-serif"; x.fillText(`Rank ${monster.rank} / ${monster.race}`,960,446); x.textAlign="left";
+    }
+
+    const reason=r.reasons?.[0];
+    x.fillStyle="#17202b"; x.font="900 22px sans-serif"; x.fillText(`勝因：${reason?.title || "総合力"}`,70,266);
+    x.fillStyle="#667085"; x.font="700 17px sans-serif"; fitText(x,reason?.detail || "能力と固有技の組み合わせ",70,298,650);
+
+    const labels=["耐久","火力","守備","速さ","技術"];
+    const vals=[r.winner.stats.hp,r.winner.stats.atk,r.winner.stats.def,r.winner.stats.spd,r.winner.stats.tec];
+    const fills=["#fff0df","#ffe2ef","#e0f3ff","#fff6bd","#eee8ff"];
+    labels.forEach((lab,i)=>{
+      const px=70+i*210;
+      x.fillStyle=fills[i]; roundRect(x,px,468,188,82,13); x.fill();
+      x.lineWidth=4; x.strokeStyle="#17202b"; x.stroke();
+      x.fillStyle="#667085"; x.font="900 15px sans-serif"; x.fillText(lab,px+14,495);
+      x.fillStyle="#17202b"; x.font="900 38px sans-serif"; x.fillText(String(vals[i]),px+14,537);
     });
+
+    x.fillStyle="#17202b"; x.font="800 16px sans-serif"; x.fillText(`${displayName(r.cardA)}  VS  ${displayName(r.cardB)}`,70,579);
+    x.fillStyle="#ff5e9f"; x.textAlign="right"; x.font="900 21px sans-serif"; x.fillText("#URLバトラー",1125,579); x.textAlign="left";
+    return canvasBlob(c);
   }
 
   function fitText(ctx, text, x, y, maxWidth) {
@@ -1349,6 +1576,8 @@
 
   function renderHistory() {
     const h = getHistory();
+    const count = $("#headerHistoryCount");
+    if (count) count.textContent = String(h.length);
     const el = $("#historyList");
     if (!h.length) {
       el.innerHTML = `<p class="muted">まだ戦歴はありません。</p>`;
@@ -1370,7 +1599,8 @@
   }
 
   function setApiState(state) {
-    $("#headerApiState").textContent = state;
+    const el = $("#headerApiState");
+    if (el) el.textContent = state;
   }
   function showProgress(on, title, text) {
     $("#scanProgress").classList.toggle("hidden", !on);
@@ -1423,11 +1653,11 @@
       const card = await getPageSpeedCard($("#createUrl").value, $("#strategySelect").value, $("#forceScan").checked);
       renderLatest(card);
       if (card.discoveryStatus === "NEW") {
-        showAlert("新発見! 未発見URLを測定しました。スキャンエナジー -1。", "success");
+        showAlert("新発見! 探索エナジーを1使ってカードを召喚しました。", "success");
       } else if (card.discoveryStatus === "DISCOVERED") {
-        showAlert("発見済みカード! みんなの共有キャッシュからエナジー0で召喚しました。", "success");
+        showAlert("みんなが発見済みのURLです。エナジー消費なしで召喚しました。", "success");
       } else {
-        showAlert("自分の発見済みデータからエナジー0で召喚しました。", "success");
+        showAlert("発見済みのURLです。エナジー消費なしで召喚しました。", "success");
       }
     } catch(e) { handleAppError(e); }
     finally { $("#scanButton").disabled = false; showProgress(false); }
@@ -1456,7 +1686,7 @@
       if (card) doRushBattle(card);
     };
     $("#clearHistoryButton").onclick = () => {
-      if (confirm("ローカル戦歴をすべて削除しますか？")) { saveJson(LS.history, []); renderHistory(); }
+      if (confirm("対戦記録をすべて削除しますか？")) { saveJson(LS.history, []); renderHistory(); }
     };
     $("#battleDialogClose").onclick = () => { battlePlaybackId++; $("#battleDialog").close(); };
     $("#externalCancel").onclick = () => { pendingExternalUrl = null; $("#externalDialog").close(); };
