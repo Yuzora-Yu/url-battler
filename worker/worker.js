@@ -1,5 +1,7 @@
 const PAGESPEED_ENDPOINT = "https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed";
 const CACHE_TTL_SECONDS = 24 * 60 * 60;
+const UPSTREAM_TIMEOUT_MS = 30_000;
+const WORKER_VERSION = "0.7.1";
 
 export default {
   async fetch(request, env) {
@@ -14,19 +16,40 @@ export default {
     const url = new URL(request.url);
     const base = String(env.APP_BASE_PATH || "/games/url-battler").replace(/\/$/, "");
     const scanPaths = new Set(["/scan", `${base}/api/scan`]);
-    if (request.method !== "POST" || !scanPaths.has(url.pathname)) {
+
+    if (!scanPaths.has(url.pathname)) {
       return json({ ok:false, code:"NOT_FOUND", message:"Not found" }, 404, cors);
+    }
+
+    // ブラウザでAPI URLを直接開いた時に、ルーティング/Binding状態を安全に確認できる。
+    if (request.method === "GET" || request.method === "HEAD") {
+      const body = {
+        ok: Boolean(env.PAGESPEED_API_KEY && env.SCAN_CACHE),
+        service: "url-battler-scan",
+        version: WORKER_VERSION,
+        endpoint: url.pathname,
+        accepts: ["POST"],
+        configured: {
+          pageSpeedApiKey: Boolean(env.PAGESPEED_API_KEY),
+          scanCache: Boolean(env.SCAN_CACHE)
+        }
+      };
+      const headers = { ...cors, "Cache-Control":"no-store" };
+      return request.method === "HEAD"
+        ? new Response(null, { status:200, headers })
+        : json(body, 200, headers);
+    }
+
+    if (request.method !== "POST") {
+      return json(
+        { ok:false, code:"METHOD_NOT_ALLOWED", message:"Use POST for scans" },
+        405,
+        { ...cors, "Allow":"GET, HEAD, POST, OPTIONS" }
+      );
     }
 
     if (!originAllowed(origin, allowedOrigins)) {
       return json({ ok:false, code:"ORIGIN_DENIED", message:"Origin denied" }, 403, cors);
-    }
-
-    if (!env.PAGESPEED_API_KEY) {
-      return json({ ok:false, code:"NO_API_KEY", message:"Scanner is not configured" }, 503, cors);
-    }
-    if (!env.SCAN_CACHE) {
-      return json({ ok:false, code:"NO_CACHE", message:"KV binding SCAN_CACHE is missing" }, 503, cors);
     }
 
     let body;
@@ -46,10 +69,11 @@ export default {
     const strategy = body.strategy === "mobile" ? "mobile" : "desktop";
     const allowFresh = body.allowFresh === true;
     const force = body.force === true;
-
     const cacheKey = await makeCacheKey(target, strategy);
+    const cacheAvailable = Boolean(env.SCAN_CACHE);
 
-    if (!force) {
+    // PageSpeed Secretが一時的に欠けていても、既存KVカードは返せるように先にキャッシュを見る。
+    if (!force && cacheAvailable) {
       try {
         const cached = await env.SCAN_CACHE.get(cacheKey, { type:"json", cacheTtl:60 });
         if (cached?.scan) {
@@ -59,7 +83,7 @@ export default {
             "X-URLB-Cache":"HIT"
           });
         }
-      } catch (e) {
+      } catch {
         // KV障害時はfreshが許可されていれば続行。許可されていなければ安全側に停止。
         if (!allowFresh) {
           return json({ ok:false, code:"CACHE_UNAVAILABLE", message:"Shared cache unavailable" }, 503, cors);
@@ -68,11 +92,19 @@ export default {
     }
 
     if (!allowFresh) {
+      if (!cacheAvailable) {
+        return json({ ok:false, code:"NO_CACHE", message:"KV binding SCAN_CACHE is missing" }, 503, cors);
+      }
       return json({
         ok:false,
         code:"CACHE_MISS",
         message:"Not discovered in shared cache"
       }, 409, { ...cors, "X-URLB-Cache":"MISS" });
+    }
+
+    // Secretは新規測定を実行する直前にだけ必須。
+    if (!env.PAGESPEED_API_KEY) {
+      return json({ ok:false, code:"NO_API_KEY", message:"Scanner is not configured" }, 503, cors);
     }
 
     const params = new URLSearchParams();
@@ -84,14 +116,24 @@ export default {
     params.append("category", "best-practices");
 
     let upstream;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
     try {
       upstream = await fetch(`${PAGESPEED_ENDPOINT}?${params.toString()}`, {
         method:"GET",
         headers:{ "accept":"application/json" },
+        signal:controller.signal,
         cf:{ cacheTtl:0, cacheEverything:false }
       });
-    } catch {
-      return json({ ok:false, code:"UPSTREAM_NETWORK", message:"PageSpeed network error" }, 502, cors);
+    } catch (e) {
+      const timedOut = e?.name === "AbortError";
+      return json({
+        ok:false,
+        code:timedOut ? "UPSTREAM_TIMEOUT" : "UPSTREAM_NETWORK",
+        message:timedOut ? "PageSpeed request timed out" : "PageSpeed network error"
+      }, timedOut ? 504 : 502, cors);
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     let data;
@@ -118,12 +160,14 @@ export default {
     }
 
     const result = compactScan(target, strategy, data);
-    try {
-      await env.SCAN_CACHE.put(cacheKey, JSON.stringify(result), {
-        expirationTtl: CACHE_TTL_SECONDS
-      });
-    } catch {
-      // カードは返せるので、KV書き込み失敗だけでユーザーのスキャンを失敗させない。
+    if (cacheAvailable) {
+      try {
+        await env.SCAN_CACHE.put(cacheKey, JSON.stringify(result), {
+          expirationTtl: CACHE_TTL_SECONDS
+        });
+      } catch {
+        // カードは返せるので、KV書き込み失敗だけでユーザーのスキャンを失敗させない。
+      }
     }
 
     return json({

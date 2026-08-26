@@ -1,10 +1,15 @@
-name = "url-battler-scan"
+# Legacy/standalone local config only.
+# Production deployment must be run from the repository root with ../wrangler.jsonc.
+# The worker name is intentionally different so an accidental deploy from this folder
+# cannot overwrite the production `url-battler-scan` Worker.
+name = "url-battler-scan-local"
 main = "worker.js"
 compatibility_date = "2026-08-26"
+workers_dev = true
 
 [vars]
-ALLOWED_ORIGIN = "http://localhost:8000"
+APP_BASE_PATH = "/games/url-battler"
+ALLOWED_ORIGINS = "http://localhost:8787,http://127.0.0.1:8787,http://localhost:8000,http://127.0.0.1:8000"
 
-[[kv_namespaces]]
-binding = "SCAN_CACHE"
-id = "b5e8a96af8834c3b88c81829534f16b9"
+# SCAN_CACHE / PAGESPEED_API_KEY are intentionally not wired here.
+# Use the root wrangler.jsonc for production or configure local bindings explicitly.
