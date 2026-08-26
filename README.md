@@ -117,6 +117,20 @@ npx.cmd wrangler deploy
 
 `worker/wrangler.toml` はローカル/旧standalone用で、production Worker名とは別名にしています。本番デプロイは必ずリポジトリルートで `npx wrangler deploy` を実行してください。
 
+## GAMEPLAY v0.8
+
+- 能力式をv7へ更新。中間値を圧縮して5能力の差を大きく表示
+- 超軽量ページはPageSpeedの揺れだけで鈍足にならないよう、軽量さを速度へ独立反映
+- カード/戦闘に5能力レーダーチャートを追加
+- バトル演出速度 ×1 / ×2 / ×4 と結果スキップ
+- 攻撃エフェクト/ダメージ表示を攻撃対象モンスター座標へ移動
+- 透明余白が偏ったモンスター素材を表示時に補正
+- 通常ライバルは実在URLモデルを優先
+- URL魔塔を追加。5Fごとにボス、30F以降は深層、最高到達階を保存
+- 連勝チャレンジは継続し、連勝に応じて相手が少し強くなる
+
+実在URLモデル敵はゲーム用固定スナップショットで、対戦のたびにPageSpeed APIを呼びません。
+
 ## SCAN ENERGY / PageSpeed保護
 
 探索エナジーとPageSpeed新規測定枠は、ブラウザの `localStorage` ではなくWorker側のSQLite-backed Durable Objectを正として管理します。

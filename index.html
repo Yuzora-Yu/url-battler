@@ -45,7 +45,8 @@
       <button class="tab" data-view="cards"><span>02</span>マイカード</button>
       <button class="tab" data-view="battle"><span>03</span>対戦</button>
       <button class="tab" data-view="rush"><span>04</span>連戦</button>
-      <button class="tab" data-view="history"><span>05</span>戦歴</button>
+      <button class="tab" data-view="tower"><span>05</span>URL魔塔</button>
+      <button class="tab" data-view="history"><span>06</span>戦歴</button>
     </nav>
 
     <main>
@@ -181,6 +182,33 @@
         <div id="rushArena"></div>
       </section>
 
+      <section id="view-tower" class="view">
+        <section class="panel tower-panel">
+          <div class="panel-head">
+            <div><p class="kicker">上へ行くほど敵が強くなる</p><h2>URL魔塔</h2></div>
+            <span class="pill success">対戦は探索エナジー0</span>
+          </div>
+          <p class="hint">お気に入り1枚で塔を攻略。実在URLをモデルにした固定データのライバルが中心で、5階ごとにボスが出現します。負けると1階からやり直し。最高到達階は残ります。</p>
+          <div class="tower-dashboard">
+            <div class="tower-floor-card"><small>現在</small><strong><span id="towerFloor">1</span>F</strong><em id="towerFloorType">入口</em></div>
+            <div class="tower-floor-card best"><small>最高到達</small><strong><span id="towerBestFloor">0</span>F</strong><em>この端末に保存</em></div>
+            <div class="tower-next-enemy">
+              <small>NEXT RIVAL</small>
+              <strong id="towerEnemyName">—</strong>
+              <span id="towerEnemyUrl">—</span>
+              <b id="towerEnemyPower">戦闘力 —</b>
+            </div>
+          </div>
+          <div class="rush-controls tower-controls">
+            <label class="select-label">出撃カード<select id="towerCardSelect"></select></label>
+            <button id="towerStartButton" class="primary big-button">塔に挑む!</button>
+            <button id="towerResetButton" class="secondary">1階からやり直す</button>
+          </div>
+          <div class="tower-note"><b>5FごとにBOSS</b><span>30F以降は「深層」。敵の能力がさらに伸び続けます。</span></div>
+        </section>
+        <div id="towerArena"></div>
+      </section>
+
       <section id="view-history" class="view">
         <section class="panel">
           <div class="panel-head">
@@ -221,6 +249,7 @@
 
   <script src="./config.js"></script>
   <script src="./assets/monster-index.js"></script>
+  <script src="./assets/monster-layout.js"></script>
   <script src="./assets/icon-map.js"></script>
   <script src="./app.js"></script>
 </body>

@@ -8,7 +8,7 @@
   const DAILY_ENERGY_MAX = 5;
   const MAX_CARDS = 5;
   const MAX_HISTORY = 100;
-  const BALANCE_VERSION = 6;
+  const BALANCE_VERSION = 7;
   let battlePlaybackId = 0;
 
   const LS = {
@@ -16,6 +16,8 @@
     history: "urlbattler.history.v2",
     cache: "urlbattler.cache.v2",
     rush: "urlbattler.rush.v2",
+    tower: "urlbattler.tower.v1",
+    battleSpeed: "urlbattler.battle-speed.v1",
     energy: "urlbattler.energy.v1"
   };
 
@@ -58,31 +60,47 @@
   ];
   function skillByName(name) { return SKILL_DEFS.find(s => s.name === name); }
 
-  const NPCS = [
-    npc("からっぽページ", "https://npc.invalid/empty", [210,180,300,930,150], ["神速","無の境地"], "STATIC"),
-    npc("メガポータル", "https://npc.invalid/portal", [865,790,690,300,835], ["重装要塞","第三者召喚"], "PORTAL"),
-    npc("画像の城", "https://npc.invalid/gallery", [720,875,510,360,610], ["画像弾幕","重装要塞"], "MEDIA"),
-    npc("JSタワー", "https://npc.invalid/app", [650,590,600,430,925], ["魔術過積載","第三者召喚"], "APP"),
-    npc("文章アーカイブ", "https://npc.invalid/archive", [780,735,700,620,280], ["DOM迷宮","鉄壁"], "ARCHIVE"),
-    npc("CSSナイト", "https://npc.invalid/style", [600,540,850,580,710], ["CSS甲冑","鉄壁"], "DESIGN"),
-    npc("古代ウェブマスター", "https://npc.invalid/oldweb", [300,310,590,965,145], ["古代HTML","神速","無の境地"], "LEGACY"),
-    npc("広告サモナー", "https://npc.invalid/ads", [710,630,420,310,900], ["第三者召喚","魔術過積載"], "SUMMONER"),
-    npc("セキュアゲート", "https://npc.invalid/gate", [560,460,920,650,500], ["三重結界","鉄壁"], "GUARD"),
-    npc("メディアタイタン", "https://npc.invalid/media", [935,880,500,220,680], ["巨大生命","画像弾幕"], "TITAN"),
-    npc("バランスクラウド", "https://npc.invalid/cloud", [690,700,710,720,730], ["鉄壁"], "CLOUD"),
-    npc("DOMラビリンス", "https://npc.invalid/dom", [835,750,790,330,705], ["DOM迷宮","重装要塞"], "MAZE")
+  const FILLER_NPCS = [
+    npc("からっぽページ", "https://example.invalid/empty", [120,95,210,965,80], ["神速","無の境地"], "STATIC", { fictional:true }),
+    npc("画像の城", "https://example.invalid/gallery", [700,900,410,260,520], ["画像弾幕","重装要塞"], "MEDIA", { fictional:true }),
+    npc("JSタワー", "https://example.invalid/app", [590,470,520,280,930], ["魔術過積載","第三者召喚"], "APP", { fictional:true }),
+    npc("DOMラビリンス", "https://example.invalid/dom", [820,690,760,230,720], ["DOM迷宮","重装要塞"], "MAZE", { fictional:true })
   ];
 
-  function npc(name, url, s, skills, className) {
+  // 実在URLをゲーム用の固定スナップショットとしてモデル化したライバル。
+  // 対戦のたびにPageSpeed APIを呼ばないため、実測値そのものではなくゲーム用能力値として保持する。
+  const REAL_RIVALS = [
+    npc("Example Domain", "https://example.com/", [90,70,420,980,70], ["古代HTML","神速","無の境地"], "STATIC"),
+    npc("阿部寛のホームページ", "https://abehiroshi.la.coocan.jp/", [75,65,500,999,65], ["古代HTML","神速","静寂のページ"], "LEGACY"),
+    npc("Wikipedia", "https://www.wikipedia.org/", [350,260,720,885,310], ["古代HTML","鉄壁"], "ARCHIVE"),
+    npc("Google", "https://www.google.com/", [260,240,790,930,480], ["神速","鉄壁"], "CLOUD"),
+    npc("Cloudflare", "https://www.cloudflare.com/", [410,390,900,820,650], ["鉄壁","三重結界"], "GUARD"),
+    npc("GitHub", "https://github.com/", [560,470,820,690,790], ["鉄壁","第三者召喚"], "APP"),
+    npc("OpenAI", "https://openai.com/", [610,560,790,630,840], ["魔術過積載","第三者召喚"], "APP"),
+    npc("Apple", "https://www.apple.com/jp/", [720,760,760,560,680], ["画像弾幕","CSS甲冑"], "DESIGN"),
+    npc("Yahoo! JAPAN", "https://www.yahoo.co.jp/", [760,680,720,470,760], ["第三者召喚","DOM迷宮"], "PORTAL"),
+    npc("NHK", "https://www.nhk.or.jp/", [800,720,760,430,700], ["DOM迷宮","画像弾幕"], "ARCHIVE"),
+    npc("note", "https://note.com/", [650,590,710,560,780], ["第三者召喚","DOM迷宮"], "APP"),
+    npc("Nintendo", "https://www.nintendo.com/jp/", [790,850,730,420,720], ["画像弾幕","CSS甲冑"], "MEDIA"),
+    npc("Amazon.co.jp", "https://www.amazon.co.jp/", [900,820,700,260,860], ["巨大生命","第三者召喚","DOM迷宮"], "TITAN"),
+    npc("YouTube", "https://www.youtube.com/", [910,880,690,220,920], ["巨大生命","画像弾幕","魔術過積載"], "MEDIA")
+  ];
+
+  const NPCS = [...REAL_RIVALS, ...FILLER_NPCS];
+
+  function npc(name, url, s, skills, className, meta = {}) {
+    let domain = name, path = "/";
+    try { const u = new URL(url); domain = u.hostname.replace(/^www\./, ""); path = u.pathname || "/"; } catch {}
+    const stats = { hp:s[0], atk:s[1], def:s[2], spd:s[3], tec:s[4] };
     return {
       id: `npc-${name}`,
-      url, finalUrl: url, domain: name, siteName: name, path: "/",
-      capturedAt: 0, strategy: "desktop", className,
-      stats: { hp: s[0], atk: s[1], def: s[2], spd: s[3], tec: s[4] },
-      bp: Math.round(s.reduce((a,b)=>a+b,0)/5),
-      skills: skills.map(skillByName).filter(Boolean),
-      metrics: { isNpc: true },
-      source: "npc", balanceVersion: BALANCE_VERSION
+      url, finalUrl:url, domain, siteName:name, path,
+      capturedAt:0, strategy:"desktop", className,
+      stats,
+      bp:battlePower(stats),
+      skills:skills.map(skillByName).filter(Boolean),
+      metrics:{ isNpc:true, fixedSnapshot:true, fictional:Boolean(meta.fictional) },
+      source:"npc", balanceVersion:BALANCE_VERSION
     };
   }
 
@@ -544,6 +562,12 @@
   function logNorm(x, scale) {
     return clamp(Math.log1p(Math.max(0, Number(x) || 0)) / Math.log1p(scale), 0, 1);
   }
+  function logRangeScore(x, low, high) {
+    const v=Math.max(0,Number(x)||0);
+    if (v<=low) return 0;
+    if (v>=high) return 1;
+    return clamp(Math.log(v/low)/Math.log(high/low),0,1);
+  }
   function fastScore(ms, good, bad) {
     if (!Number.isFinite(ms)) return null;
     return clamp(1 - (ms - good) / (bad - good), 0, 1);
@@ -555,81 +579,81 @@
     }
     return weight ? sum / weight : fallback;
   }
-  // 通常域はおおむね120〜920。950超は生データがかなり極端な場合だけ。
-  function softStat(n) {
+  // v7: 中央付近を広げ、サイトごとの得意・不得意をレーダーで見て分かる差にする。
+  function spreadStat(n) {
     const x = clamp(Number(n) || 0, 0, 1);
-    return Math.round(120 + 800 * Math.pow(x, .92));
+    const k = 7.4;
+    const sigmoid = v => 1 / (1 + Math.exp(-k * (v - .5)));
+    const lo = sigmoid(0), hi = sigmoid(1);
+    const t = clamp((sigmoid(x) - lo) / (hi - lo), 0, 1);
+    return Math.round(55 + 900 * t);
   }
   function legendaryBoost(base, quality) {
     if (!Number.isFinite(quality) || quality <= 0) return base;
-    return Math.min(999, Math.round(base + 79 * clamp(quality, 0, 1)));
+    return Math.min(999, Math.round(base + 44 * clamp(quality, 0, 1)));
   }
 
   function makeStats(m) {
     const hpN = weightedAvailable([
-      [logNorm(m.totalBytes, 18 * 1024 * 1024), .48],
-      [logNorm(m.domNodes, 6500), .24],
-      [logNorm(m.requestCount, 320), .28]
-    ], .34);
+      [logRangeScore(m.totalBytes, 300*1024, 15*1024*1024), .55],
+      [logRangeScore(m.domNodes, 300, 5000), .25],
+      [logRangeScore(m.requestCount, 15, 260), .20]
+    ], .28);
     const atkN = weightedAvailable([
-      [logNorm(m.imageBytes, 12 * 1024 * 1024), .34],
-      [logNorm(m.imageCount, 120), .17],
-      [logNorm(m.documentBytes, 900 * 1024), .13],
-      [logNorm(m.requestCount, 300), .16],
-      [logNorm(m.domNodes, 6000), .20]
-    ], .32);
-
+      [logRangeScore(m.imageBytes, 120*1024, 8*1024*1024), .45],
+      [logRangeScore(m.imageCount, 4, 120), .23],
+      [logRangeScore(m.totalBytes, 450*1024, 14*1024*1024), .17],
+      [logRangeScore(m.domNodes, 300, 5000), .15]
+    ], .26);
     const defN = weightedAvailable([
-      [m.best !== null && m.best !== undefined ? m.best / 100 : null, .48],
-      [m.isHttps, .20],
-      [m.httpsAudit, .10],
-      [m.hsts, .09],
-      [m.csp, .08],
-      [m.noVuln, .05]
-    ], .43);
+      [m.best !== null && m.best !== undefined ? m.best / 100 : null, .42],
+      [m.isHttps, .10], [m.httpsAudit, .10], [m.hsts, .14], [m.csp, .14], [m.noVuln, .10]
+    ], .40);
 
-    const spdN = weightedAvailable([
-      [m.perf !== null && m.perf !== undefined ? m.perf / 100 : null, .36],
-      [fastScore(m.fcp, 450, 4300), .18],
-      [fastScore(m.lcp, 900, 6000), .24],
-      [fastScore(m.tbt, 60, 1500), .13],
-      [fastScore(m.si, 900, 6500), .09]
+    const runtimeSpeed = weightedAvailable([
+      [m.perf !== null && m.perf !== undefined ? m.perf / 100 : null, .34],
+      [fastScore(m.fcp, 350, 4300), .18],
+      [fastScore(m.lcp, 700, 6000), .22],
+      [fastScore(m.tbt, 40, 1500), .16],
+      [fastScore(m.si, 700, 6500), .10]
     ], .42);
+    const lightness = weightedAvailable([
+      [1 - logRangeScore(m.totalBytes, 180*1024, 7*1024*1024), .30],
+      [1 - logRangeScore(m.requestCount, 8, 200), .20],
+      [1 - logRangeScore(m.scriptBytes, 35*1024, 3*1024*1024), .28],
+      [1 - logRangeScore(m.domNodes, 180, 4000), .12],
+      [1 - logRangeScore(m.thirdPartyDomains, 1, 32), .10]
+    ], .48);
+    let spdN = runtimeSpeed * .62 + lightness * .38;
+
+    const bytes = Number(m.totalBytes || 0), req = Number(m.requestCount || 0), js = Number(m.scriptBytes || 0), dom = Number(m.domNodes || 0);
+    const ultraLight = bytes > 0 && bytes <= 600*1024 && req > 0 && req <= 18 && js <= 100*1024 && dom <= 650;
+    const hyperLight = bytes > 0 && bytes <= 280*1024 && req > 0 && req <= 10 && js <= 45*1024 && dom <= 360;
+    if (ultraLight) spdN = Math.max(spdN, .91);
+    if (hyperLight) spdN = Math.max(spdN, .985);
 
     const tecN = weightedAvailable([
-      [logNorm(m.scriptBytes, 4.5 * 1024 * 1024), .43],
-      [logNorm(m.cssBytes, 1200 * 1024), .17],
-      [logNorm(m.thirdPartyDomains, 32), .20],
-      [logNorm(m.resourceTypes, 10), .08],
-      [logNorm(m.requestCount, 300), .12]
-    ], .30);
+      [logRangeScore(m.scriptBytes, 45*1024, 4*1024*1024), .50],
+      [logRangeScore(m.thirdPartyDomains, 2, 30), .20],
+      [logRangeScore(m.resourceTypes, 3, 10), .08],
+      [logRangeScore(m.domNodes, 300, 5000), .10],
+      [logRangeScore(m.requestCount, 15, 260), .12]
+    ], .24);
 
-    let hp = softStat(hpN);
-    let atk = softStat(atkN);
-    let def = softStat(defN);
-    let spd = softStat(spdN);
-    let tec = softStat(tecN);
+    let hp=spreadStat(hpN), atk=spreadStat(atkN), def=spreadStat(defN), spd=spreadStat(spdN), tec=spreadStat(tecN);
 
-    hp = legendaryBoost(hp, Math.min(
-      logNorm(Math.max(0, (m.totalBytes || 0) - 18*1024*1024), 45*1024*1024),
-      logNorm(Math.max(0, (m.requestCount || 0) - 320), 500)
-    ));
-    atk = legendaryBoost(atk, Math.min(
-      logNorm(Math.max(0, (m.imageBytes || 0) - 12*1024*1024), 30*1024*1024),
-      logNorm(Math.max(0, (m.imageCount || 0) - 120), 250)
-    ));
-    const perfectGuard = (m.best === 100 ? .25 : 0) + (m.isHttps ? .15 : 0) + (m.hsts === 1 ? .2 : 0) + (m.csp === 1 ? .2 : 0) + (m.noVuln === 1 ? .2 : 0);
-    def = legendaryBoost(def, perfectGuard >= .95 ? .55 : 0);
-    const speedLegend = (m.perf === 100 && (m.lcp ?? 99999) < 350 && (m.fcp ?? 99999) < 250 && (m.tbt ?? 99999) <= 10)
-      ? clamp((350 - (m.lcp || 350)) / 300 + .25, .25, 1) : 0;
-    spd = legendaryBoost(spd, speedLegend);
-    tec = legendaryBoost(tec, Math.min(
-      logNorm(Math.max(0, (m.scriptBytes || 0) - 4.5*1024*1024), 10*1024*1024),
-      logNorm(Math.max(0, (m.thirdPartyDomains || 0) - 32), 60)
-    ));
+    hp = legendaryBoost(hp, Math.min(logRangeScore(bytes,15*1024*1024,45*1024*1024), logRangeScore(req,260,650)));
+    atk = legendaryBoost(atk, Math.min(logRangeScore(Number(m.imageBytes||0),8*1024*1024,30*1024*1024), logRangeScore(Number(m.imageCount||0),120,300)));
+    const perfectGuard = (m.best === 100 ? .22:0)+(m.isHttps?.12:0)+(m.hsts===1?.22:0)+(m.csp===1?.22:0)+(m.noVuln===1?.22:0);
+    def = legendaryBoost(def, perfectGuard >= .92 ? .75 : 0);
+    if (hyperLight) spd = 999;
+    else if (ultraLight) spd = Math.max(spd, 955);
+    else spd = legendaryBoost(spd, m.perf===100 && (m.lcp??99999)<650 && (m.tbt??99999)<=20 ? .7 : 0);
+    tec = legendaryBoost(tec, Math.min(logRangeScore(js,4*1024*1024,12*1024*1024), logRangeScore(Number(m.thirdPartyDomains||0),30,70)));
 
     return { hp, atk, def, spd, tec };
   }
+
 
   function chooseSkills(m, s) {
     const found = [];
@@ -911,6 +935,27 @@
     return [`hsla(${hue}, 90%, 58%, .23)`, `hsl(${(hue+70)%360}, 85%, 68%)`];
   }
 
+  function monsterLayout(monster) {
+    const raw = window.URLB_MONSTER_LAYOUT?.[String(monster?.id)] || null;
+    return raw ? { x:Number(raw.x||0), y:Number(raw.y||0), s:Number(raw.s||1) } : { x:0, y:0, s:1 };
+  }
+  function monsterSpriteHtml(monster, className="") {
+    if (!monster) return "";
+    const l=monsterLayout(monster);
+    return `<span class="monster-sprite ${esc(className)}" style="--monster-x:${l.x};--monster-y:${l.y};--monster-scale:${l.s}"><img src="${esc(monster.image)}" alt="${esc(monster.name)}" loading="lazy" /></span>`;
+  }
+  function radarSvg(stats, compact=false) {
+    const keys=["hp","atk","def","spd","tec"];
+    const labels=["耐","火","守","速","技"];
+    const size=compact?92:112, c=size/2, r=compact?34:42;
+    const point=(i,rate=1)=>{ const a=-Math.PI/2+i*Math.PI*2/5; return [c+Math.cos(a)*r*rate,c+Math.sin(a)*r*rate]; };
+    const poly=(rate)=>keys.map((_,i)=>point(i,rate).map(n=>n.toFixed(1)).join(",")).join(" ");
+    const values=keys.map((k,i)=>point(i,clamp(Number(stats?.[k]||0)/999,0,1)).map(n=>n.toFixed(1)).join(",")).join(" ");
+    const axes=keys.map((_,i)=>{const p=point(i,1);return `<line x1="${c}" y1="${c}" x2="${p[0].toFixed(1)}" y2="${p[1].toFixed(1)}" />`;}).join("");
+    const text=compact?"":labels.map((label,i)=>{const p=point(i,1.20);return `<text x="${p[0].toFixed(1)}" y="${(p[1]+3).toFixed(1)}">${label}</text>`;}).join("");
+    return `<svg class="stat-radar-svg ${compact?"compact":""}" viewBox="0 0 ${size} ${size}" role="img" aria-label="5能力レーダーチャート"><g class="radar-grid"><polygon points="${poly(1)}"/><polygon points="${poly(.67)}"/><polygon points="${poly(.34)}"/>${axes}</g><polygon class="radar-value" points="${values}"/>${text}</svg>`;
+  }
+
   function cardHtml(card, opts = {}) {
     const [a,b] = cardColors(card);
     const path = card.path || (() => { try { const u = new URL(card.url); return u.pathname + u.search; } catch { return "/"; } })();
@@ -923,9 +968,7 @@
     const monster = monsterForCard(card);
     const monsterHtml = monster ? `
       <div class="monster-panel">
-        <div class="monster-art">
-          <img src="${esc(monster.image)}" alt="${esc(monster.name)}" loading="lazy" />
-        </div>
+        <div class="monster-art">${monsterSpriteHtml(monster, "card-monster-sprite")}</div>
         <div class="monster-info">
           <small>相棒モンスター</small>
           <strong>${esc(monster.name)}</strong>
@@ -946,12 +989,15 @@
           <div class="card-bp"><small>戦闘力</small><strong>${fmt(card.bp)}</strong></div>
           ${monsterHtml}
         </div>
-        <div class="stats">
-          ${statBox("hp","耐久",card.stats.hp)}
-          ${statBox("atk","火力",card.stats.atk)}
-          ${statBox("def","守備",card.stats.def)}
-          ${statBox("spd","速さ",card.stats.spd)}
-          ${statBox("tec","技術",card.stats.tec)}
+        <div class="stats-and-radar">
+          <div class="stats">
+            ${statBox("hp","耐久",card.stats.hp)}
+            ${statBox("atk","火力",card.stats.atk)}
+            ${statBox("def","守備",card.stats.def)}
+            ${statBox("spd","速さ",card.stats.spd)}
+            ${statBox("tec","技術",card.stats.tec)}
+          </div>
+          <div class="stat-radar">${radarSvg(card.stats)}</div>
         </div>
         <div class="skills">
           ${(card.skills?.length ? card.skills : [{id:"normal",name:"ノーマル",desc:"目立った固有技なし"}]).map(s=>`
@@ -1019,7 +1065,7 @@
     $("#saveLatestCard").onclick = () => saveCard(card);
     $("#shareLatestCard").onclick = () => shareCard(card);
     $("#downloadLatestCard").onclick = () => downloadCardImage(card);
-    $("#battleLatestNpc").onclick = () => showBattle(card, randomNpc(), "ライバル");
+    $("#battleLatestNpc").onclick = () => showBattle(card, randomNpc(card), "ライバル");
     $("#openLatestSite").onclick = () => requestExternalOpen(card.url);
   }
 
@@ -1049,7 +1095,7 @@
         $(".act-share", el).onclick = () => shareCard(card);
         $(".act-image", el).onclick = () => downloadCardImage(card);
         $(".act-name", el).onclick = () => openCardNameEditor(card);
-        $(".act-battle", el).onclick = () => showBattle(card, randomNpc(), "ライバル");
+        $(".act-battle", el).onclick = () => showBattle(card, randomNpc(card), "ライバル");
         $(".act-open", el).onclick = () => requestExternalOpen(card.url);
         $(".act-delete", el).onclick = () => removeCard(card.id);
         $(".act-rescan", el).onclick = async () => {
@@ -1064,6 +1110,7 @@
       });
     }
     renderRushSelect();
+    renderTower();
   }
 
   function renderRushSelect() {
@@ -1075,9 +1122,83 @@
     $("#rushStartButton").disabled = !cards.length;
   }
 
-  function randomNpc() {
-    return structuredClone(NPCS[Math.floor(Math.random() * NPCS.length)]);
+  function scaledNpc(base, targetBp, salt = "") {
+    const c = structuredClone(base);
+    const current = Math.max(1, battlePower(c.stats));
+    const factor = clamp(Number(targetBp || current) / current, .58, 1.75);
+    for (const k of ["hp","atk","def","spd","tec"]) c.stats[k] = clamp(Math.round(c.stats[k] * factor), 45, 999);
+    c.bp = battlePower(c.stats);
+    c.id = `${base.id}-${salt || Math.round(targetBp)}`;
+    return c;
   }
+
+  function randomNpc(playerCard = null, streak = 0) {
+    const pool = Math.random() < .82 ? REAL_RIVALS : NPCS;
+    if (!playerCard) return structuredClone(pool[Math.floor(Math.random() * pool.length)]);
+    const target = clamp(Number(playerCard.bp || 600) * (.82 + Math.min(25, Number(streak||0)) * .025), 220, 965);
+    const ranked = [...pool].sort((a,b)=>Math.abs(a.bp-target)-Math.abs(b.bp-target));
+    const pick = ranked[Math.floor(Math.random() * Math.min(4, ranked.length))];
+    return scaledNpc(pick, target * (.96 + Math.random()*.09), `rush-${streak}-${Date.now()}`);
+  }
+
+  function getTowerState() {
+    const s = loadJson(LS.tower, {});
+    return { floor:Math.max(1, Number(s.floor||1)), best:Math.max(0, Number(s.best||0)) };
+  }
+  function saveTowerState(s) { saveJson(LS.tower, { floor:Math.max(1,s.floor|0), best:Math.max(0,s.best|0) }); }
+  function towerBaseForFloor(floor) {
+    if (floor <= 2) return FILLER_NPCS[(floor-1) % FILLER_NPCS.length];
+    const index = (floor - 3) % REAL_RIVALS.length;
+    return REAL_RIVALS[index];
+  }
+  function towerEnemyForFloor(floor) {
+    const f = Math.max(1, Number(floor||1));
+    const boss = f % 5 === 0;
+    const base = towerBaseForFloor(f);
+    let target = 300 + f * 19;
+    if (f > 30) target += (f - 30) * 7;
+    if (boss) target += 45;
+    target = clamp(target, 260, 985);
+    const c = scaledNpc(base, target, `tower-${f}`);
+    c.siteName = boss ? `BOSS ${base.siteName}` : base.siteName;
+    c.towerFloor = f;
+    c.towerBoss = boss;
+    return c;
+  }
+
+  function renderTower() {
+    const floorEl=$("#towerFloor");
+    if (!floorEl) return;
+    const state=getTowerState(), enemy=towerEnemyForFloor(state.floor);
+    floorEl.textContent=state.floor;
+    $("#towerBestFloor").textContent=state.best;
+    $("#towerFloorType").textContent=state.floor>30 ? (state.floor%5===0 ? "深層BOSS" : "深層") : (state.floor%5===0 ? "BOSS" : state.floor===1 ? "入口" : "上層");
+    $("#towerEnemyName").textContent=displayName(enemy);
+    $("#towerEnemyUrl").textContent=enemy.metrics?.fictional ? "訓練用ダミーURL" : enemy.url;
+    $("#towerEnemyPower").textContent=`戦闘力 ${fmt(enemy.bp)}${enemy.towerBoss ? " / BOSS" : ""}`;
+    const sel=$("#towerCardSelect"), cards=getCards();
+    const prev=sel.value;
+    sel.innerHTML=cards.length ? cards.map(c=>`<option value="${esc(c.id)}">${esc(displayName(c))} — 戦闘力 ${fmt(c.bp)}</option>`).join("") : `<option value="">保存カードがありません</option>`;
+    if (cards.some(c=>c.id===prev)) sel.value=prev;
+    $("#towerStartButton").disabled=!cards.length;
+  }
+
+  function doTowerBattle(card) {
+    const state=getTowerState();
+    const foughtFloor=state.floor;
+    const enemy=towerEnemyForFloor(foughtFloor);
+    const r=showBattle(card, enemy, `TOWER_${foughtFloor}`, "tower");
+    if (r.winnerId===card.id) {
+      state.best=Math.max(state.best,foughtFloor);
+      state.floor=foughtFloor+1;
+    } else {
+      state.floor=1;
+    }
+    saveTowerState(state);
+    renderTower();
+    return r;
+  }
+
 
   function seededRandom(seed) {
     let x = seed >>> 0 || 123456789;
@@ -1308,6 +1429,9 @@
     if (target === "rush") {
       root = $("#rushArena");
       root.innerHTML = battleResultHtml(r);
+    } else if (target === "tower") {
+      root = $("#towerArena");
+      root.innerHTML = battleResultHtml(r);
     } else if (target === "arena") {
       root = $("#battleArena");
       root.innerHTML = battleResultHtml(r);
@@ -1334,14 +1458,17 @@
         </div>
         ${monster ? `
           <div class="fighter-monster">
-            <img src="${esc(monster.image)}" alt="${esc(monster.name)}" />
+            ${monsterSpriteHtml(monster, "battle-monster-sprite")}
             <div><b>${esc(monster.name)}</b><span>ランク ${fmt(monster.rank)} ・ ${esc(monster.race)}<br>${esc(buddyText(card))}</span></div>
           </div>` : ""}
         <div class="hp-line">
           <div class="hp-label"><span>HP</span><b class="hp-text">${fmt(hp)} / ${fmt(hp)}</b></div>
           <div class="hp-track"><div class="hp-fill"></div></div>
         </div>
-        <div class="fighter-mini-stats"><span>火力 ${card.stats.atk}</span><span>守備 ${card.stats.def}</span><span>速さ ${card.stats.spd}</span></div>
+        <div class="fighter-stat-zone">
+          <div class="fighter-mini-stats"><span>耐久 ${card.stats.hp}</span><span>火力 ${card.stats.atk}</span><span>守備 ${card.stats.def}</span><span>速さ ${card.stats.spd}</span><span>技術 ${card.stats.tec}</span></div>
+          <div class="fighter-radar">${radarSvg(card.stats,true)}</div>
+        </div>
       </div>`;
   }
 
@@ -1354,7 +1481,8 @@
           <div class="battle-center">
             <span class="turn-chip">開始!</span>
             <div class="battle-message">まもなくバトル開始!</div>
-            <button class="battle-skip" type="button">演出をスキップ</button>
+            <div class="battle-playback-controls"><span>演出速度</span><button type="button" class="battle-speed" data-speed="1">×1</button><button type="button" class="battle-speed" data-speed="2">×2</button><button type="button" class="battle-speed" data-speed="4">×4</button></div>
+            <button class="battle-skip" type="button">結果までスキップ</button>
           </div>
           ${fighterBattleHtml(r.cardB, r.fighterB.maxHp, "B")}
           <div class="battle-effect-art" aria-hidden="true"><img alt="" /></div>
@@ -1366,6 +1494,9 @@
 
   function sideForCard(r, id) { return id === r.cardA.id ? "A" : "B"; }
   function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+  function getBattleSpeed() { return [1,2,4].includes(Number(loadJson(LS.battleSpeed,1))) ? Number(loadJson(LS.battleSpeed,1)) : 1; }
+  function setBattleSpeed(v) { const n=[1,2,4].includes(Number(v))?Number(v):1; saveJson(LS.battleSpeed,n); return n; }
+  function battleDelay(ms) { return sleep(Math.max(16, ms / getBattleSpeed())); }
 
   async function playBattleAnimation(r, root, rush, target) {
     const playback = ++battlePlaybackId;
@@ -1378,12 +1509,16 @@
     const flash = $(".skill-flash", shell);
     const skip = $(".battle-skip", shell);
     let skipNow = false;
-    skip.onclick = () => { skipNow = true; skip.textContent = "スキップ中..."; };
+    const speedButtons = $$(".battle-speed", shell);
+    const paintSpeed = () => speedButtons.forEach(b => b.classList.toggle("active", Number(b.dataset.speed) === getBattleSpeed()));
+    speedButtons.forEach(b => b.onclick = () => { setBattleSpeed(b.dataset.speed); paintSpeed(); });
+    paintSpeed();
+    skip.onclick = () => { skipNow = true; skip.textContent = "結果を表示中..."; };
 
     const hpState = { A:r.fighterA.maxHp, B:r.fighterB.maxHp };
     msg.textContent = `${displayName(r.cardA)} vs ${displayName(r.cardB)} — バトル開始!`;
     showBattleFx(fx, "BATTLE!");
-    await sleep(520);
+    await battleDelay(520);
 
     for (const e of r.events) {
       if (playback !== battlePlaybackId) return;
@@ -1395,7 +1530,7 @@
       if (e.kind === "judge") {
         msg.textContent = e.text;
         showBattleFx(fx, "判定!");
-        await sleep(520);
+        await battleDelay(520);
         continue;
       }
       if (e.kind === "opening") {
@@ -1405,8 +1540,8 @@
         flash.classList.remove("on"); void flash.offsetWidth; flash.classList.add("on");
         msg.textContent = e.text;
         showBattleFx(fx, e.skill);
-        showBattleEffect(effectArt, SKILL_EFFECTS[e.skill] || "./assets/effects/fx_support_buff.png");
-        await sleep(500);
+        showBattleEffect(effectArt, SKILL_EFFECTS[e.skill] || "./assets/effects/fx_support_buff.png", shell, fighterEl);
+        await battleDelay(500);
         fighterEl?.classList.remove("lunge-left","lunge-right");
         continue;
       }
@@ -1418,8 +1553,8 @@
         dEl?.classList.add(dSide === "A" ? "lunge-right" : "lunge-left");
         msg.textContent = e.text;
         showBattleFx(fx, "MISS!");
-        showBattleEffect(effectArt, "./assets/effects/fx-wind-ai.png");
-        await sleep(430);
+        showBattleEffect(effectArt, "./assets/effects/fx-wind-ai.png", shell, dEl);
+        await battleDelay(430);
         aEl?.classList.remove("lunge-left","lunge-right"); dEl?.classList.remove("lunge-left","lunge-right");
         continue;
       }
@@ -1428,16 +1563,16 @@
         const aEl = $(`.battle-fighter[data-side="${aSide}"]`, shell);
         const dEl = $(`.battle-fighter[data-side="${dSide}"]`, shell);
         aEl?.classList.add(aSide === "A" ? "lunge-left" : "lunge-right");
-        await sleep(90);
+        await battleDelay(90);
         dEl?.classList.add("hit");
         hpState[dSide] = e.hpAfter;
         updateBattleHp(dEl, e.hpAfter, e.maxHp);
-        spawnDamage(shell, dEl, `${e.critical ? "会心! " : ""}-${e.damage}`);
+        spawnDamage(shell, $(".fighter-monster", dEl) || dEl, `${e.critical ? "会心! " : ""}-${e.damage}`);
         msg.textContent = e.kind === "extra" ? e.text : `${e.text} / ${e.explain}`;
         if (e.skillName) showBattleFx(fx, e.skillName);
         const attackerCard = e.attackerId === r.cardA.id ? r.cardA : r.cardB;
-        showBattleEffect(effectArt, effectForEvent(e, attackerCard));
-        await sleep(e.kind === "extra" ? 430 : 520);
+        showBattleEffect(effectArt, effectForEvent(e, attackerCard), shell, dEl);
+        await battleDelay(e.kind === "extra" ? 430 : 520);
         aEl?.classList.remove("lunge-left","lunge-right"); dEl?.classList.remove("hit");
       }
     }
@@ -1449,7 +1584,7 @@
     turnChip.textContent = `${r.turns}ターン決着`;
     msg.textContent = `勝者「${displayName(r.winner)}」!`;
     showBattleFx(fx, "WIN!");
-    await sleep(skipNow ? 120 : 500);
+    await battleDelay(skipNow ? 120 : 500);
     showBattleFinal(shell, r, rush, target);
   }
 
@@ -1459,9 +1594,18 @@
     el.classList.remove("show"); void el.offsetWidth; el.classList.add("show");
   }
 
-  function showBattleEffect(el, src) {
+  function showBattleEffect(el, src, shell, targetEl) {
     if (!el || !src) return;
     const img = $("img", el);
+    const stage = shell ? $(".battle-stage", shell) : null;
+    const visual = targetEl ? ($(".fighter-monster", targetEl) || targetEl) : null;
+    if (stage && visual) {
+      const sr=stage.getBoundingClientRect(), tr=visual.getBoundingClientRect();
+      el.style.left=`${tr.left-sr.left+tr.width*.5}px`;
+      el.style.top=`${tr.top-sr.top+tr.height*.48}px`;
+      const size=clamp(tr.width*1.25,150,270);
+      el.style.width=`${size}px`; el.style.height=`${size}px`;
+    }
     if (!img) return;
     img.src = src;
     el.classList.remove("show");
@@ -1495,7 +1639,7 @@
         <div><small>勝者 / ${r.turns}ターン</small><h3>${esc(displayName(r.winner))}</h3>
           ${monsterForCard(r.winner) ? `<p class="winner-monster-name">相棒 ${esc(monsterForCard(r.winner).name)} / ランク ${fmt(monsterForCard(r.winner).rank)}</p>` : ""}
         </div>
-        ${monsterForCard(r.winner) ? `<img class="winner-monster" src="${esc(monsterForCard(r.winner).image)}" alt="${esc(monsterForCard(r.winner).name)}" />` : ""}
+        ${monsterForCard(r.winner) ? `<div class="winner-monster">${monsterSpriteHtml(monsterForCard(r.winner), "winner-monster-sprite")}</div>` : ""}
         <div class="winner-badge">勝<br>利!</div>
       </div>
       <div class="reason-grid">${r.reasons.map(x=>`<div class="reason-card"><b>${esc(x.title)}</b><span>${esc(x.detail)}</span></div>`).join("")}</div>
@@ -1517,12 +1661,19 @@
       else showBattle(r.cardA, r.cardB, "REMATCH", target);
     };
     const next = $(".result-next", root);
-    if (rush) { next.classList.remove("hidden"); next.onclick = () => doRushBattle(r.cardA); }
+    if (rush) { next.classList.remove("hidden"); next.textContent="次の相手へ"; next.onclick = () => doRushBattle(r.cardA); }
+    if (target === "tower") {
+      const state=getTowerState();
+      next.classList.remove("hidden");
+      next.textContent = r.winnerId===r.cardA.id ? `次の階 ${state.floor}Fへ` : "1Fから再挑戦";
+      next.onclick = () => doTowerBattle(r.cardA);
+      $(".result-rematch", root).textContent="この相手と再戦";
+    }
   }
 
   function doRushBattle(card) {
-    const r = showBattle(card, randomNpc(), "RUSH", "rush");
     const state = loadJson(LS.rush, {streak:0});
+    const r = showBattle(card, randomNpc(card, state.streak || 0), "RUSH", "rush");
     if (r.winnerId === card.id) state.streak = (state.streak || 0) + 1;
     else state.streak = 0;
     saveJson(LS.rush, state);
@@ -1911,6 +2062,15 @@
     $("#rushStartButton").onclick = () => {
       const card = getCards().find(c => c.id === $("#rushCardSelect").value);
       if (card) doRushBattle(card);
+    };
+    $("#towerStartButton").onclick = () => {
+      const card = getCards().find(c => c.id === $("#towerCardSelect").value);
+      if (card) doTowerBattle(card);
+    };
+    $("#towerResetButton").onclick = () => {
+      if (confirm("URL魔塔を1階からやり直しますか？ 最高到達階は残ります。")) {
+        const s=getTowerState(); s.floor=1; saveTowerState(s); renderTower(); $("#towerArena").innerHTML="";
+      }
     };
     $("#clearHistoryButton").onclick = () => {
       if (confirm("対戦記録をすべて削除しますか？")) { saveJson(LS.history, []); renderHistory(); }
