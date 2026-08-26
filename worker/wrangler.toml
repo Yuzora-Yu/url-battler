@@ -1,0 +1,10 @@
+name = "url-battler-scan"
+main = "worker.js"
+compatibility_date = "2026-08-26"
+
+[vars]
+ALLOWED_ORIGIN = "http://localhost:8000"
+
+[[kv_namespaces]]
+binding = "SCAN_CACHE"
+id = "b5e8a96af8834c3b88c81829534f16b9"
