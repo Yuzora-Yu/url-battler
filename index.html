@@ -189,9 +189,11 @@
             <div><p class="kicker">上へ行くほど敵が強くなる</p><h2>URL魔塔</h2></div>
             <span class="pill success">対戦は探索エナジー0</span>
           </div>
-          <p class="hint">お気に入り1枚で塔を攻略。実在URLをモデルにした固定データのライバルが中心で、5階ごとにボスが出現します。負けると1階からやり直し。最高到達階は残ります。</p>
+          <p class="hint">全50階。10階ごとに敵の強さ帯が上がり、10F / 20F / 30F / 40Fは固定BOSS、50FはFINAL BOSSです。負けると1Fへ戻り、その挑戦の累計ターンもリセット。50F突破時の総ターン数がスコアとして記録されます。</p>
           <div class="tower-dashboard">
             <div class="tower-floor-card"><small>現在</small><strong><span id="towerFloor">1</span>F</strong><em id="towerFloorType">入口</em></div>
+            <div class="tower-floor-card run"><small>今回の累計</small><strong><span id="towerRunTurns">0</span>T</strong><em>50F突破まで加算</em></div>
+            <div class="tower-floor-card score"><small>最速クリア</small><strong id="towerBestScore">—</strong><em id="towerBestScoreNote">50F制覇で記録</em></div>
             <div class="tower-floor-card best"><small>最高到達</small><strong><span id="towerBestFloor">0</span>F</strong><em>この端末に保存</em></div>
             <div class="tower-next-enemy">
               <small>NEXT RIVAL</small>
@@ -205,7 +207,7 @@
             <button id="towerStartButton" class="primary big-button">塔に挑む!</button>
             <button id="towerResetButton" class="secondary">1階からやり直す</button>
           </div>
-          <div class="tower-note"><b>5FごとにBOSS</b><span>30F以降は「深層」。敵の能力がさらに伸び続けます。</span></div>
+          <div class="tower-note"><b id="towerBandLabel">1–10F / 戦闘力300–470</b><span>通常階は帯の中で少しランダム。10階ごとのBOSSは固定、50F撃破でクリアです。</span></div>
         </section>
         <div id="towerArena"></div>
       </section>

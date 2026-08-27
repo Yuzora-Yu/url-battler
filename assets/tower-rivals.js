@@ -3,7 +3,7 @@
 
   // URL魔塔向けの実在Webサービス一覧。
   // 実ネットワークへ毎戦アクセスせず、URLとサービス種別だけを固定データとして保持し、
-  // app.js 側でゲーム用能力値へ変換する。80件を一巡するまで同じ相手は出ない。
+  // app.js 側でゲーム用能力値へ変換する。通常階は各10階帯の強さに合わせてランダム選出し、ボス階は固定する。
   window.URLB_TOWER_RIVALS = [
     { name:"Google", url:"https://www.google.com/", profile:"search" },
     { name:"YouTube", url:"https://www.youtube.com/", profile:"media" },

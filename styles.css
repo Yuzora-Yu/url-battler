@@ -362,11 +362,11 @@ footer{margin-top:16px;padding:20px 4px 0;display:flex;justify-content:space-bet
 .winner-monster{position:relative;width:105px;height:95px;overflow:hidden}.winner-monster .monster-sprite{width:100%;height:100%}
 
 .tower-panel{background:linear-gradient(145deg,#fff9ea,#eef0ff)}
-.tower-dashboard{display:grid;grid-template-columns:150px 150px 1fr;gap:10px;margin:14px 0}
+.tower-dashboard{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}
 .tower-floor-card,.tower-next-enemy{border:2px solid var(--ink);border-radius:12px;background:#fff;padding:12px;box-shadow:3px 3px 0 var(--ink)}
-.tower-floor-card.best{background:#fff4bc}.tower-floor-card small,.tower-next-enemy small{display:block;font-size:8px;font-weight:1000;color:var(--muted)}
+.tower-floor-card.best{background:#fff4bc}.tower-floor-card.run{background:#eefaff}.tower-floor-card.score{background:#fff0f7}.tower-floor-card small,.tower-next-enemy small{display:block;font-size:8px;font-weight:1000;color:var(--muted)}
 .tower-floor-card strong{display:block;font-size:31px;line-height:1;color:var(--pink);margin:5px 0}.tower-floor-card em{font-size:9px;font-style:normal;font-weight:1000}
-.tower-next-enemy{background:#e9f7ff;min-width:0}.tower-next-enemy strong{display:block;font-size:18px;margin-top:4px}.tower-next-enemy span{display:block;font-size:8px;color:var(--muted);font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}.tower-next-enemy b{display:inline-block;margin-top:8px;font-size:10px;color:var(--blue)}
+.tower-next-enemy{background:#e9f7ff;min-width:0;grid-column:1/-1}.tower-next-enemy strong{display:block;font-size:18px;margin-top:4px}.tower-next-enemy span{display:block;font-size:8px;color:var(--muted);font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}.tower-next-enemy b{display:inline-block;margin-top:8px;font-size:10px;color:var(--blue)}
 .tower-note{display:flex;gap:10px;align-items:center;margin-top:13px;border:2px dashed rgba(23,32,43,.35);border-radius:10px;padding:9px 11px;font-size:9px;font-weight:900}.tower-note b{color:var(--pink)}
 
 @media(max-width:900px){.tower-dashboard{grid-template-columns:1fr 1fr}.tower-next-enemy{grid-column:1/-1}}
@@ -813,4 +813,30 @@ footer{margin-top:16px;padding:20px 4px 0;display:flex;justify-content:space-bet
   }
   .battle-message.winner-message > strong{font-size:11px}
   .battle-message.winner-message > small{font-size:6.5px}
+}
+
+/* v1.2: 50F tower bands / clear turn score */
+.tower-result-summary{
+  margin:12px 0;
+  padding:11px 14px;
+  border:2px solid var(--ink);
+  border-radius:12px;
+  background:#eefaff;
+  box-shadow:3px 3px 0 var(--ink);
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:10px;
+}
+.tower-result-summary small{font-size:9px;font-weight:1000;color:var(--blue);letter-spacing:.08em}
+.tower-result-summary strong{font-size:18px;line-height:1.2;text-align:center}
+.tower-result-summary span{font-size:9px;font-weight:900;color:var(--muted);text-align:right}
+.tower-result-summary.clear{background:#fff4bc}
+.tower-result-summary.clear strong{color:var(--pink);font-size:22px}
+.tower-result-summary.failed{background:#f2f2f2}
+.tower-result-summary.failed small,.tower-result-summary.failed strong{color:#626b75}
+@media(max-width:650px){
+  .tower-result-summary{grid-template-columns:1fr;gap:4px;text-align:center}
+  .tower-result-summary strong,.tower-result-summary span{text-align:center}
+  .tower-floor-card.score strong{font-size:22px}
 }

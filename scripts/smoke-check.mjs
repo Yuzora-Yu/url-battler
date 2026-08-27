@@ -9,14 +9,20 @@ const monsterLayout = await readFile(new URL("../assets/monster-layout.js", impo
 const towerRivals = await readFile(new URL("../assets/tower-rivals.js", import.meta.url), "utf8");
 const legacyWrangler = await readFile(new URL("../worker/wrangler.toml", import.meta.url), "utf8");
 
-const requiredIds = ["createUrl","scanButton","energyRemaining","cardsGrid","battleArena","rushArena","towerArena","towerStartButton","battleDialog","backupExportButton","backupImportButton"];
+const requiredIds = ["createUrl","scanButton","energyRemaining","cardsGrid","battleArena","rushArena","towerArena","towerStartButton","towerRunTurns","towerBestScore","towerBandLabel","battleDialog","backupExportButton","backupImportButton"];
 for (const id of requiredIds) if (!html.includes(`id="${id}"`)) throw new Error(`missing HTML id: ${id}`);
-for (const token of ["BALANCE_VERSION = 8","playBattleAnimation","#URLバトラー","spreadStat","monsterForCard","battle-effect-art","towerEnemyForFloor","radarSvg","battle-speed","LANDMARK_SKILLS","buddyLocks","rushAuto","winner-message","defeated"]) if (!app.includes(token)) throw new Error(`missing app token: ${token}`);
+for (const token of ["BALANCE_VERSION = 8","playBattleAnimation","#URLバトラー","spreadStat","monsterForCard","battle-effect-art","towerEnemyForFloor","TOWER_MAX_FLOOR = 50","TOWER_BANDS","TOWER_BOSSES","bestClearTurns","tower-result-summary","radarSvg","battle-speed","LANDMARK_SKILLS","buddyLocks","rushAuto","winner-message","defeated"]) if (!app.includes(token) && !html.includes(token) && !towerRivals.includes(token)) throw new Error(`missing app feature token: ${token}`);
 
 if (!monsterLayout.includes("URLB_MONSTER_LAYOUT")) throw new Error("monster layout map is missing");
 const towerRivalCount = (towerRivals.match(/\{ name:/g) || []).length;
 if (towerRivalCount < 50 || towerRivalCount > 100) throw new Error(`tower rival count must stay between 50 and 100: ${towerRivalCount}`);
 if (!html.includes("./assets/tower-rivals.js")) throw new Error("tower rival data script is not loaded");
+
+for (const floor of [10,20,30,40,50]) {
+  if (!new RegExp(`\\b${floor}:\"https://`).test(app)) throw new Error(`tower fixed boss missing at ${floor}F`);
+}
+if (!app.includes('foughtFloor===TOWER_MAX_FLOOR')) throw new Error("tower clear must happen at 50F");
+if (!app.includes('state.runTurns=attemptTurns') || !app.includes('resetTowerRun(state)')) throw new Error("tower cumulative-turn/reset logic is missing");
 if (!config.includes('"/games/url-battler/api/scan"')) throw new Error("production scan endpoint must be absolute");
 if (!worker.includes('service: "url-battler-scan"') || !worker.includes('request.method === "GET"')) throw new Error("scanner health GET is missing");
 if (!worker.includes('\"UPSTREAM_TIMEOUT\"')) throw new Error("scanner upstream timeout handling is missing");

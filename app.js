@@ -127,6 +127,22 @@
     .filter(v => v && v.name && v.url)
     .map(towerNpcFromDef);
 
+  const TOWER_MAX_FLOOR = 50;
+  const TOWER_BANDS = [
+    { from:1, to:10, normalMax:430, minBp:300, bossBp:470, label:"1–10F / 戦闘力300–470" },
+    { from:11, to:20, normalMax:550, minBp:430, bossBp:590, label:"11–20F / 戦闘力430–590" },
+    { from:21, to:30, normalMax:670, minBp:560, bossBp:710, label:"21–30F / 戦闘力560–710" },
+    { from:31, to:40, normalMax:790, minBp:690, bossBp:840, label:"31–40F / 戦闘力690–840" },
+    { from:41, to:50, normalMax:910, minBp:810, bossBp:980, label:"41–50F / 戦闘力810–980" }
+  ];
+  const TOWER_BOSSES = {
+    10:"https://www.wikipedia.org/",
+    20:"https://github.com/",
+    30:"https://www.youtube.com/",
+    40:"https://www.amazon.co.jp/",
+    50:"https://www.google.com/"
+  };
+
   function npc(name, url, s, skills, className, meta = {}) {
     let domain = name, path = "/";
     try { const u = new URL(url); domain = u.hostname.replace(/^www\./, ""); path = u.pathname || "/"; } catch {}
@@ -1220,11 +1236,19 @@
     $("#rushStartButton").disabled = !cards.length;
   }
 
-  function scaledNpc(base, targetBp, salt = "") {
+  function scaledNpc(base, targetBp, salt = "", minFactor = .58, maxFactor = 1.75, tightenBp = false) {
     const c = structuredClone(base);
     const current = Math.max(1, battlePower(c.stats));
-    const factor = clamp(Number(targetBp || current) / current, .58, 1.75);
+    const target = Number(targetBp || current);
+    const factor = clamp(target / current, minFactor, maxFactor);
     for (const k of ["hp","atk","def","spd","tec"]) c.stats[k] = clamp(Math.round(c.stats[k] * factor), 45, 999);
+    if (tightenBp) {
+      for (let i=0; i<10; i++) {
+        const diff = Math.round(target - battlePower(c.stats));
+        if (Math.abs(diff) <= 2) break;
+        for (const k of ["hp","atk","def","spd","tec"]) c.stats[k] = clamp(c.stats[k] + diff, 45, 999);
+      }
+    }
     c.bp = battlePower(c.stats);
     c.id = `${base.id}-${salt || Math.round(targetBp)}`;
     return c;
@@ -1239,60 +1263,151 @@
     return scaledNpc(pick, target * (.96 + Math.random()*.09), `rush-${streak}-${Date.now()}`);
   }
 
+  function newTowerRunSeed() {
+    return ((Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0) || 1;
+  }
+
   function getTowerState() {
-    const s = loadJson(LS.tower, {});
-    return { floor:Math.max(1, Number(s.floor||1)), best:Math.max(0, Number(s.best||0)) };
+    const raw = loadJson(LS.tower, {});
+    const state = {
+      floor:clamp(Math.max(1, Number(raw.floor || 1) | 0), 1, TOWER_MAX_FLOOR),
+      best:clamp(Math.max(0, Number(raw.best || 0) | 0), 0, TOWER_MAX_FLOOR),
+      runTurns:Math.max(0, Number(raw.runTurns || 0) | 0),
+      bestClearTurns:Math.max(0, Number(raw.bestClearTurns || 0) | 0),
+      lastClearTurns:Math.max(0, Number(raw.lastClearTurns || 0) | 0),
+      clears:Math.max(0, Number(raw.clears || 0) | 0),
+      runSeed:(Number(raw.runSeed) >>> 0) || newTowerRunSeed()
+    };
+    if (!raw.runSeed) saveTowerState(state);
+    return state;
   }
-  function saveTowerState(s) { saveJson(LS.tower, { floor:Math.max(1,s.floor|0), best:Math.max(0,s.best|0) }); }
-  function towerBaseForFloor(floor) {
+
+  function saveTowerState(s) {
+    saveJson(LS.tower, {
+      floor:clamp(Math.max(1, Number(s.floor || 1) | 0), 1, TOWER_MAX_FLOOR),
+      best:clamp(Math.max(0, Number(s.best || 0) | 0), 0, TOWER_MAX_FLOOR),
+      runTurns:Math.max(0, Number(s.runTurns || 0) | 0),
+      bestClearTurns:Math.max(0, Number(s.bestClearTurns || 0) | 0),
+      lastClearTurns:Math.max(0, Number(s.lastClearTurns || 0) | 0),
+      clears:Math.max(0, Number(s.clears || 0) | 0),
+      runSeed:(Number(s.runSeed) >>> 0) || newTowerRunSeed()
+    });
+  }
+
+  function resetTowerRun(state) {
+    state.floor = 1;
+    state.runTurns = 0;
+    state.runSeed = newTowerRunSeed();
+    return state;
+  }
+
+  function towerBandForFloor(floor) {
+    const f = clamp(Math.max(1, Number(floor || 1) | 0), 1, TOWER_MAX_FLOOR);
+    return TOWER_BANDS.find(b => f >= b.from && f <= b.to) || TOWER_BANDS[0];
+  }
+
+  function towerSeededRandom(state, floor, salt) {
+    const seedText = `${state.runSeed}|${floor}|${salt}`;
+    const seed = parseInt(hashString(seedText), 36) || 1;
+    return seededRandom(seed);
+  }
+
+  function towerBaseForFloor(floor, state = getTowerState()) {
+    const f = clamp(Math.max(1, Number(floor || 1) | 0), 1, TOWER_MAX_FLOOR);
     const pool = TOWER_RIVALS.length ? TOWER_RIVALS : REAL_RIVALS;
-    // 37は80件と互いに素。固定リストを一巡するまで同じ相手が出ない。
-    const index = ((Math.max(1, Number(floor || 1)) - 1) * 37 + 11) % pool.length;
-    return pool[index];
+    const bossUrl = TOWER_BOSSES[f];
+    if (bossUrl) return pool.find(c => c.url === bossUrl) || REAL_RIVALS.find(c => c.url === bossUrl) || pool[0];
+
+    const bossUrls = new Set(Object.values(TOWER_BOSSES));
+    const normalPool = pool.filter(c => !bossUrls.has(c.url));
+    const candidates = normalPool.length ? normalPool : pool;
+    const rnd = towerSeededRandom(state, f, "rival");
+    return candidates[Math.floor(rnd() * candidates.length)];
   }
-  function towerEnemyForFloor(floor) {
-    const f = Math.max(1, Number(floor||1));
-    const boss = f % 5 === 0;
-    const base = towerBaseForFloor(f);
-    let target = 300 + f * 19;
-    if (f > 30) target += (f - 30) * 7;
-    if (boss) target += 45;
-    target = clamp(target, 260, 985);
-    const c = scaledNpc(base, target, `tower-${f}`);
-    c.siteName = boss ? `BOSS ${base.siteName}` : base.siteName;
+
+  function towerTargetBpForFloor(floor, state = getTowerState()) {
+    const f = clamp(Math.max(1, Number(floor || 1) | 0), 1, TOWER_MAX_FLOOR);
+    const band = towerBandForFloor(f);
+    if (TOWER_BOSSES[f]) return band.bossBp;
+    const lastNormal = band.to - 1;
+    const progress = lastNormal <= band.from ? 0 : (f - band.from) / (lastNormal - band.from);
+    const center = band.minBp + (band.normalMax - band.minBp) * clamp(progress, 0, 1);
+    const rnd = towerSeededRandom(state, f, "power");
+    const jitter = (rnd() - .5) * (band.normalMax - band.minBp) * .18;
+    return Math.round(clamp(center + jitter, band.minBp, band.normalMax));
+  }
+
+  function towerEnemyForFloor(floor, state = getTowerState()) {
+    const f = clamp(Math.max(1, Number(floor || 1) | 0), 1, TOWER_MAX_FLOOR);
+    const boss = Boolean(TOWER_BOSSES[f]);
+    const base = towerBaseForFloor(f, state);
+    const target = towerTargetBpForFloor(f, state);
+    const c = scaledNpc(base, target, `tower-${state.runSeed}-${f}`, .34, 1.9, true);
     c.towerFloor = f;
     c.towerBoss = boss;
+    c.towerFinalBoss = f === TOWER_MAX_FLOOR;
+    c.towerBand = towerBandForFloor(f).label;
     return c;
   }
 
   function renderTower() {
     const floorEl=$("#towerFloor");
     if (!floorEl) return;
-    const state=getTowerState(), enemy=towerEnemyForFloor(state.floor);
+    const state=getTowerState(), enemy=towerEnemyForFloor(state.floor, state);
+    const boss = enemy.towerBoss;
     floorEl.textContent=state.floor;
     $("#towerBestFloor").textContent=state.best;
-    $("#towerFloorType").textContent=state.floor>30 ? (state.floor%5===0 ? "深層BOSS" : "深層") : (state.floor%5===0 ? "BOSS" : state.floor===1 ? "入口" : "上層");
+    $("#towerRunTurns").textContent=fmt(state.runTurns);
+    $("#towerBestScore").textContent=state.bestClearTurns ? `${fmt(state.bestClearTurns)}T` : "—";
+    $("#towerBestScoreNote").textContent=state.bestClearTurns ? `前回 ${fmt(state.lastClearTurns || state.bestClearTurns)}T / ${state.clears}回制覇` : "50F制覇で記録";
+    $("#towerFloorType").textContent=enemy.towerFinalBoss ? "FINAL BOSS" : boss ? `${state.floor}F BOSS` : state.floor===1 ? "入口" : `${Math.ceil(state.floor/10)}層`;
     $("#towerEnemyName").textContent=displayName(enemy);
     $("#towerEnemyUrl").textContent=enemy.metrics?.fictional ? "訓練用ダミーURL" : enemy.url;
-    $("#towerEnemyPower").textContent=`戦闘力 ${fmt(enemy.bp)}${enemy.towerBoss ? " / BOSS" : ""}`;
+    $("#towerEnemyPower").textContent=`戦闘力 ${fmt(enemy.bp)}${enemy.towerFinalBoss ? " / FINAL BOSS" : boss ? " / BOSS" : ""}`;
+    $("#towerBandLabel").textContent=towerBandForFloor(state.floor).label;
     const sel=$("#towerCardSelect"), cards=getCards();
     const prev=sel.value;
     sel.innerHTML=cards.length ? cards.map(c=>`<option value="${esc(c.id)}">${esc(displayName(c))} — 戦闘力 ${fmt(c.bp)}</option>`).join("") : `<option value="">保存カードがありません</option>`;
     if (cards.some(c=>c.id===prev)) sel.value=prev;
-    $("#towerStartButton").disabled=!cards.length;
+    const startButton=$("#towerStartButton");
+    startButton.disabled=!cards.length;
+    startButton.textContent=enemy.towerFinalBoss ? "FINAL BOSSに挑む!" : state.floor===1 ? "塔に挑む!" : `${state.floor}Fに挑む!`;
   }
 
-  function doTowerBattle(card, floorOverride = null) {
+  function doTowerBattle(card) {
     const state=getTowerState();
-    const foughtFloor=Math.max(1, Number(floorOverride || state.floor));
-    const enemy=towerEnemyForFloor(foughtFloor);
+    const foughtFloor=state.floor;
+    const enemy=towerEnemyForFloor(foughtFloor, state);
     const r=showBattle(card, enemy, `TOWER_${foughtFloor}`, "tower");
-    if (r.winnerId===card.id) {
-      state.best=Math.max(state.best,foughtFloor);
-      state.floor=foughtFloor+1;
+    const attemptTurns = state.runTurns + r.turns;
+    const won = r.winnerId===card.id;
+    const cleared = won && foughtFloor===TOWER_MAX_FLOOR;
+    state.best=Math.max(state.best,foughtFloor);
+
+    if (won) {
+      if (cleared) {
+        state.lastClearTurns=attemptTurns;
+        state.bestClearTurns=state.bestClearTurns ? Math.min(state.bestClearTurns, attemptTurns) : attemptTurns;
+        state.clears+=1;
+        resetTowerRun(state);
+      } else {
+        state.runTurns=attemptTurns;
+        state.floor=foughtFloor+1;
+      }
     } else {
-      state.floor=1;
+      resetTowerRun(state);
     }
+
+    r.tower={
+      floor:foughtFloor,
+      won,
+      cleared,
+      attemptTurns,
+      nextFloor:state.floor,
+      bestFloor:state.best,
+      bestClearTurns:state.bestClearTurns,
+      clears:state.clears
+    };
     saveTowerState(state);
     renderTower();
     return r;
@@ -1750,6 +1865,13 @@
     const winnerSide = sideForCard(r, r.winner.id);
     $(`.battle-fighter[data-side="${loserSide}"]`, shell)?.classList.add("defeated");
     $(`.battle-fighter[data-side="${winnerSide}"]`, shell)?.classList.add("victorious");
+    const towerSummary = target === "tower" && r.tower
+      ? r.tower.cleared
+        ? `<div class="tower-result-summary clear"><small>URL魔塔 50F CLEAR</small><strong>最終スコア ${fmt(r.tower.attemptTurns)} TURN</strong><span>ベスト ${fmt(r.tower.bestClearTurns)} TURN ・ ${r.tower.clears}回制覇</span></div>`
+        : r.tower.won
+          ? `<div class="tower-result-summary"><small>${r.tower.floor}F 突破</small><strong>累計 ${fmt(r.tower.attemptTurns)} TURN</strong><span>次は ${r.tower.nextFloor}F</span></div>`
+          : `<div class="tower-result-summary failed"><small>${r.tower.floor}F 敗北</small><strong>今回 ${fmt(r.tower.attemptTurns)} TURN</strong><span>塔の進行は1Fへリセット</span></div>`
+      : "";
     resultEl.classList.remove("hidden");
     resultEl.innerHTML = `
       <div class="winner-strip">
@@ -1762,6 +1884,7 @@
         ${winnerMonster ? `<div class="winner-monster">${monsterSpriteHtml(winnerMonster, "winner-monster-sprite")}</div>` : ""}
         <div class="winner-badge">勝<br>利!</div>
       </div>
+      ${towerSummary}
       <div class="reason-grid">${r.reasons.map(x=>`<div class="reason-card"><b>${esc(x.title)}</b><span>${esc(x.detail)}</span></div>`).join("")}</div>
       <div class="result-actions">
         <button class="primary result-next hidden">次へ</button>
@@ -1833,12 +1956,13 @@
 
     rematch.onclick = () => showBattle(r.cardA, r.cardB, "REMATCH", target);
     if (target === "tower") {
-      const state=getTowerState();
       next.classList.remove("hidden");
-      next.textContent = r.winnerId===r.cardA.id ? `次の階へ（${state.floor}F）` : "1Fから再挑戦";
+      if (r.tower?.cleared) next.textContent = "1Fから新しく挑戦";
+      else if (r.tower?.won) next.textContent = `次の階へ（${r.tower.nextFloor}F）`;
+      else next.textContent = "1Fから再挑戦";
       next.onclick = () => doTowerBattle(r.cardA);
-      rematch.textContent="再戦";
-      rematch.onclick = () => doTowerBattle(r.cardA, r.cardB?.towerFloor || 1);
+      rematch.textContent="同じ相手と再戦（記録外）";
+      rematch.onclick = () => showBattle(r.cardA, r.cardB, "TOWER_PRACTICE", "dialog");
     }
   }
 
@@ -2039,7 +2163,8 @@
 
   async function shareResult(r) {
     const wm = monsterForCard(r.winner);
-    const text = `⚔ URLバトラー!「${r.winner.url || r.winner.domain}」勝利! ${r.turns}ターン決着 / 戦闘力${r.winner.bp}${wm ? ` / 相棒 ${wm.name}` : ""} #URLバトラー ${PUBLIC_APP_URL}`;
+    const towerText = r.tower?.cleared ? ` / URL魔塔50F CLEAR・総${r.tower.attemptTurns}T` : "";
+    const text = `⚔ URLバトラー!「${r.winner.url || r.winner.domain}」勝利! ${r.turns}ターン決着${towerText} / 戦闘力${r.winner.bp}${wm ? ` / 相棒 ${wm.name}` : ""} #URLバトラー ${PUBLIC_APP_URL}`;
     const blob = await makeResultImage(r);
     const file = new File([blob], `url-battler-${r.id}.png`, {type:"image/png"});
     try {
@@ -2070,7 +2195,7 @@
     x.fillStyle="#61c9ff"; roundRect(x,48,42,1104,70,16); x.fill();
     x.fillStyle="#17202b"; x.font="900 27px sans-serif"; x.fillText("URLバトラー",74,86);
     x.fillStyle="#fff"; x.font="900 18px sans-serif"; x.textAlign="right";
-    x.fillText(`${r.turns}ターン決着`,1126,84); x.textAlign="left";
+    x.fillText(r.tower?.cleared ? `魔塔50F CLEAR ・ SCORE ${r.tower.attemptTurns}T` : `${r.turns}ターン決着`,1126,84); x.textAlign="left";
 
     x.fillStyle="#ff5e9f"; x.font="900 72px sans-serif"; x.fillText("WIN!",70,184);
     x.fillStyle="#667085"; x.font="900 15px sans-serif"; fitText(x,displayName(r.winner),260,142,450,12);
@@ -2273,8 +2398,8 @@
       if (card) doTowerBattle(card);
     };
     $("#towerResetButton").onclick = () => {
-      if (confirm("URL魔塔を1階からやり直しますか？ 最高到達階は残ります。")) {
-        const s=getTowerState(); s.floor=1; saveTowerState(s); renderTower(); $("#towerArena").innerHTML="";
+      if (confirm("URL魔塔を1階からやり直しますか？ 今回の累計ターンはリセットされます。最高到達階とクリアスコアは残ります。")) {
+        const s=getTowerState(); resetTowerRun(s); saveTowerState(s); renderTower(); $("#towerArena").innerHTML="";
       }
     };
     $("#clearHistoryButton").onclick = () => {
