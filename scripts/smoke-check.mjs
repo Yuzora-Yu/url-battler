@@ -8,9 +8,9 @@ const rootWrangler = await readFile(new URL("../wrangler.jsonc", import.meta.url
 const monsterLayout = await readFile(new URL("../assets/monster-layout.js", import.meta.url), "utf8");
 const legacyWrangler = await readFile(new URL("../worker/wrangler.toml", import.meta.url), "utf8");
 
-const requiredIds = ["createUrl","scanButton","energyRemaining","cardsGrid","battleArena","rushArena","towerArena","towerStartButton","battleDialog"];
+const requiredIds = ["createUrl","scanButton","energyRemaining","cardsGrid","battleArena","rushArena","towerArena","towerStartButton","battleDialog","backupExportButton","backupImportButton"];
 for (const id of requiredIds) if (!html.includes(`id="${id}"`)) throw new Error(`missing HTML id: ${id}`);
-for (const token of ["BALANCE_VERSION = 7","playBattleAnimation","#URLバトラー","spreadStat","monsterForCard","battle-effect-art","towerEnemyForFloor","radarSvg","battle-speed"]) if (!app.includes(token)) throw new Error(`missing app token: ${token}`);
+for (const token of ["BALANCE_VERSION = 8","playBattleAnimation","#URLバトラー","spreadStat","monsterForCard","battle-effect-art","towerEnemyForFloor","radarSvg","battle-speed","LANDMARK_SKILLS","buddyLocks"]) if (!app.includes(token)) throw new Error(`missing app token: ${token}`);
 
 if (!monsterLayout.includes("URLB_MONSTER_LAYOUT")) throw new Error("monster layout map is missing");
 if (!config.includes('"/games/url-battler/api/scan"')) throw new Error("production scan endpoint must be absolute");

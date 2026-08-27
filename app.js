@@ -8,7 +8,7 @@
   const DAILY_ENERGY_MAX = 5;
   const MAX_CARDS = 5;
   const MAX_HISTORY = 100;
-  const BALANCE_VERSION = 7;
+  const BALANCE_VERSION = 8;
   let battlePlaybackId = 0;
 
   const LS = {
@@ -18,7 +18,8 @@
     rush: "urlbattler.rush.v2",
     tower: "urlbattler.tower.v1",
     battleSpeed: "urlbattler.battle-speed.v1",
-    energy: "urlbattler.energy.v1"
+    energy: "urlbattler.energy.v1",
+    buddyLocks: "urlbattler.buddy-locks.v1"
   };
 
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -56,7 +57,10 @@
     { id:"css-armor", name:"CSS甲冑", desc:"装飾の厚みで守備アップ", priority:55 },
     { id:"giant-life", name:"巨大生命", desc:"超重量ページで最大HPアップ", priority:74 },
     { id:"clean-page", name:"静寂のページ", desc:"通信の少なさで攻撃を回避", priority:60 },
-    { id:"unstable", name:"揺らぐ大地", desc:"不安定さを高威力へ変換", priority:40 }
+    { id:"unstable", name:"揺らぐ大地", desc:"不安定さを高威力へ変換", priority:40 },
+    { id:"world-record", name:"Web殿堂", desc:"Web史・記録で知られるページ。主要能力を強化", priority:130 },
+    { id:"web-origin", name:"始原のWeb", desc:"Web史を刻んだページ。守備と技術を大きく強化", priority:132 },
+    { id:"million-grid", name:"百万陣", desc:"圧倒的なページ物量で追撃を放つ", priority:128 }
   ];
   function skillByName(name) { return SKILL_DEFS.find(s => s.name === name); }
 
@@ -98,7 +102,7 @@
       capturedAt:0, strategy:"desktop", className,
       stats,
       bp:battlePower(stats),
-      skills:skills.map(skillByName).filter(Boolean),
+      skills:skills.map(skillByName).filter(Boolean).slice(0,2),
       metrics:{ isNpc:true, fixedSnapshot:true, fictional:Boolean(meta.fictional) },
       source:"npc", balanceVersion:BALANCE_VERSION
     };
@@ -126,8 +130,8 @@
     return migrated;
   }
   function rebalanceCard(card) {
-    const stats = makeStats(card.metrics || {});
-    const skills = chooseSkills(card.metrics || {}, stats);
+    const stats = makeStats(card.metrics || {}, card.strategy || "desktop");
+    const skills = chooseSkills(card.metrics || {}, stats, card.url || card.finalUrl || "");
     return {
       ...card,
       stats,
@@ -473,8 +477,8 @@
   function buildCard(requestedUrl, strategy, payload) {
     const metrics = { ...(payload.scan || {}) };
     const finalUrl = payload.finalUrl || metrics.finalUrl || requestedUrl;
-    const stats = makeStats(metrics);
-    const skills = chooseSkills(metrics, stats);
+    const stats = makeStats(metrics, strategy);
+    const skills = chooseSkills(metrics, stats, requestedUrl || finalUrl);
     const className = chooseClass(metrics, stats);
     const u = new URL(requestedUrl);
     const domain = u.hostname;
@@ -593,7 +597,7 @@
     return Math.min(999, Math.round(base + 44 * clamp(quality, 0, 1)));
   }
 
-  function makeStats(m) {
+  function makeStats(m, strategy = "desktop") {
     const hpN = weightedAvailable([
       [logRangeScore(m.totalBytes, 300*1024, 15*1024*1024), .55],
       [logRangeScore(m.domNodes, 300, 5000), .25],
@@ -625,6 +629,9 @@
       [1 - logRangeScore(m.thirdPartyDomains, 1, 32), .10]
     ], .48);
     let spdN = runtimeSpeed * .62 + lightness * .38;
+    // Lighthouse mobile is intentionally throttled and otherwise tends to look uniformly slow.
+    // Keep strategy differences visible while compressing the artificial mobile/desktop gap.
+    spdN = strategy === "mobile" ? (spdN * .90 + .08) : (spdN * .96 + .01);
 
     const bytes = Number(m.totalBytes || 0), req = Number(m.requestCount || 0), js = Number(m.scriptBytes || 0), dom = Number(m.domNodes || 0);
     const ultraLight = bytes > 0 && bytes <= 600*1024 && req > 0 && req <= 18 && js <= 100*1024 && dom <= 650;
@@ -646,16 +653,36 @@
     atk = legendaryBoost(atk, Math.min(logRangeScore(Number(m.imageBytes||0),8*1024*1024,30*1024*1024), logRangeScore(Number(m.imageCount||0),120,300)));
     const perfectGuard = (m.best === 100 ? .22:0)+(m.isHttps?.12:0)+(m.hsts===1?.22:0)+(m.csp===1?.22:0)+(m.noVuln===1?.22:0);
     def = legendaryBoost(def, perfectGuard >= .92 ? .75 : 0);
-    if (hyperLight) spd = 999;
-    else if (ultraLight) spd = Math.max(spd, 955);
-    else spd = legendaryBoost(spd, m.perf===100 && (m.lcp??99999)<650 && (m.tbt??99999)<=20 ? .7 : 0);
+    const mythicSpeed = hyperLight && m.perf === 100 && (m.lcp ?? 99999) < 450 && (m.tbt ?? 99999) <= 0 && req <= 6 && bytes <= 150*1024;
+    if (mythicSpeed) spd = 999;
+    else if (hyperLight) spd = Math.max(spd, 972);
+    else if (ultraLight) spd = Math.max(spd, 925);
+    else spd = legendaryBoost(spd, m.perf===100 && (m.lcp??99999)<520 && (m.tbt??99999)<=10 ? .45 : 0);
+    if (!mythicSpeed) spd = Math.min(spd, 988);
     tec = legendaryBoost(tec, Math.min(logRangeScore(js,4*1024*1024,12*1024*1024), logRangeScore(Number(m.thirdPartyDomains||0),30,70)));
 
     return { hp, atk, def, spd, tec };
   }
 
 
-  function chooseSkills(m, s) {
+  const LANDMARK_SKILLS = [
+    { hosts:["worlds-highest-website.com"], skill:"Web殿堂" },
+    { hosts:["onepixelwebsite.com"], skill:"Web殿堂" },
+    { hosts:["thelongestdomainnameintheworldandthensomeandthensomemoreandmore.com"], skill:"Web殿堂" },
+    { hosts:["abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijk.com","3.141592653589793238462643383279502884197169399375105820974944592.com"], skill:"Web殿堂" },
+    { hosts:["symbolics.com","info.cern.ch"], skill:"始原のWeb" },
+    { hosts:["insure.com","facebook.com","sex.com"], skill:"Web殿堂" },
+    { hosts:["milliondollarhomepage.com"], skill:"百万陣" }
+  ];
+  function landmarkSkillForUrl(url) {
+    try {
+      const host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+      const hit = LANDMARK_SKILLS.find(x => x.hosts.includes(host));
+      return hit ? skillByName(hit.skill) : null;
+    } catch { return null; }
+  }
+
+  function chooseSkills(m, s, url = "") {
     const found = [];
     const add = (name, cond) => { if (cond) { const sk = skillByName(name); if (sk) found.push(sk); } };
 
@@ -674,7 +701,9 @@
     add("静寂のページ", m.requestCount > 0 && m.requestCount <= 10);
     add("揺らぐ大地", (m.cls ?? 0) >= .25);
 
-    return found.sort((a,b)=>b.priority-a.priority).slice(0,3);
+    const landmark = landmarkSkillForUrl(url || m.finalUrl || "");
+    const normal = found.sort((a,b)=>b.priority-a.priority).filter(x => !landmark || x.id !== landmark.id);
+    return landmark ? [landmark, ...normal].slice(0,2) : normal.slice(0,2);
   }
 
   function chooseClass(m, s) {
@@ -768,8 +797,37 @@
     return ["精霊","魔族","機械","死霊"];
   }
 
-  function monsterForCard(card) {
+  function getBuddyLocks() { return loadJson(LS.buddyLocks, {}); }
+  function buddyLockKey(card) { return String(card?.id || `${card?.strategy || "desktop"}|${card?.url || ""}`); }
+  function lockedMonsterForCard(card) {
+    const lock = getBuddyLocks()[buddyLockKey(card)];
+    if (!lock) return null;
+    return MONSTER_POOL.find(m => String(m.id) === String(lock.monsterId)) || null;
+  }
+  function toggleBuddyLock(card) {
+    const locks = getBuddyLocks();
+    const key = buddyLockKey(card);
+    if (locks[key]) {
+      delete locks[key];
+      saveJson(LS.buddyLocks, locks);
+      showAlert("相棒の固定を解除しました。", "success", false);
+    } else {
+      const monster = monsterForCard(card, true);
+      if (!monster) return;
+      locks[key] = { monsterId:monster.id, monsterName:monster.name, lockedAt:now() };
+      saveJson(LS.buddyLocks, locks);
+      showAlert(`相棒「${monster.name}」をこの端末に固定しました。`, "success", false);
+    }
+    renderAll();
+  }
+  function isBuddyLocked(card) { return Boolean(getBuddyLocks()[buddyLockKey(card)]); }
+
+  function monsterForCard(card, ignoreLock = false) {
     if (!MONSTER_POOL.length) return null;
+    if (!ignoreLock) {
+      const locked = lockedMonsterForCard(card);
+      if (locked) return locked;
+    }
     const bp = Number(card?.bp || 0);
     const target = targetMonsterRank(bp);
     let pool;
@@ -890,6 +948,7 @@
 
   function removeCard(id) {
     if (!confirm("このカードを手持ちから外しますか？")) return;
+    const locks=getBuddyLocks(); delete locks[String(id)]; saveJson(LS.buddyLocks,locks);
     setCards(getCards().filter(c => c.id !== id));
   }
 
@@ -1084,6 +1143,7 @@
             <button class="primary act-share">SNSで見せる</button>
             <button class="secondary act-image">画像</button>
             <button class="secondary act-name">名前変更</button>
+            <button class="secondary act-buddy">相棒固定</button>
             <button class="secondary act-battle">おまかせ対戦</button>
             <button class="secondary act-open">サイト</button>
             <button class="secondary act-rescan">最新に更新 ⚡1</button>
@@ -1095,6 +1155,9 @@
         $(".act-share", el).onclick = () => shareCard(card);
         $(".act-image", el).onclick = () => downloadCardImage(card);
         $(".act-name", el).onclick = () => openCardNameEditor(card);
+        const buddyBtn = $(".act-buddy", el);
+        buddyBtn.textContent = isBuddyLocked(card) ? "相棒固定解除" : "相棒を固定";
+        buddyBtn.onclick = () => toggleBuddyLock(card);
         $(".act-battle", el).onclick = () => showBattle(card, randomNpc(card), "ライバル");
         $(".act-open", el).onclick = () => requestExternalOpen(card.url);
         $(".act-delete", el).onclick = () => removeCard(card.id);
@@ -1264,6 +1327,9 @@
     if (f.skills.has("三重結界")) f.passiveNotes.push("三重結界：被ダメージ-10%");
     if (f.skills.has("無の境地")) f.passiveNotes.push("無の境地：技術攻撃を軽減");
     if (f.skills.has("静寂のページ")) f.passiveNotes.push("静寂のページ：ときどき攻撃回避");
+    if (f.skills.has("Web殿堂")) { f.atk*=1.10; f.def*=1.10; f.spd*=1.08; f.tec*=1.10; f.passiveNotes.push("Web殿堂：主要能力を強化"); }
+    if (f.skills.has("始原のWeb")) { f.def*=1.16; f.tec*=1.14; f.passiveNotes.push("始原のWeb：守備+16% / 技術+14%"); }
+    if (f.skills.has("百万陣")) { f.atk*=1.14; f.passiveNotes.push("百万陣：火力+14% / 追撃あり"); }
 
     const buddy = monsterBond(card);
     f.buddy = buddy;
@@ -1354,6 +1420,13 @@
     });
     log.push(`${text} (${explain}${tags.length ? ` / ${tags.join("+")}で軽減` : ""})`);
 
+    if (attacker.skills.has("百万陣") && rnd() < .24 && defender.hp > 0) {
+      const extra = Math.max(28, Math.round(damage * .38));
+      defender.hp = Math.max(0, defender.hp - extra); attacker.damageDealt += extra; defender.damageTaken += extra;
+      const extraText = `${displayName(attacker.card)}「百万陣」→ 追加${extra}ダメージ`;
+      events.push({ kind:"extra", turn, attackerId:attacker.card.id, defenderId:defender.card.id, attackName:"百万陣", damage:extra, hpAfter:defender.hp, maxHp:defender.maxHp, skillName:"百万陣", text:extraText });
+      log.push(extraText);
+    }
     if (!techAttack && attacker.skills.has("画像弾幕") && rnd() < .34 && defender.hp > 0) {
       const extra = Math.max(20, Math.round(damage * .46));
       defender.hp = Math.max(0, defender.hp - extra);
@@ -1424,22 +1497,11 @@
       cardA:snapshot(a), cardB:snapshot(b), winnerId:r.winnerId,
       winnerDomain:displayName(r.winner), loserDomain:displayName(r.loser)
     });
-
-    let root;
-    if (target === "rush") {
-      root = $("#rushArena");
-      root.innerHTML = battleResultHtml(r);
-    } else if (target === "tower") {
-      root = $("#towerArena");
-      root.innerHTML = battleResultHtml(r);
-    } else if (target === "arena") {
-      root = $("#battleArena");
-      root.innerHTML = battleResultHtml(r);
-    } else {
-      root = $("#battleDialogContent");
-      root.innerHTML = battleResultHtml(r);
-      if (!$("#battleDialog").open) $("#battleDialog").showModal();
-    }
+    const root = $("#battleDialogContent");
+    root.innerHTML = battleResultHtml(r);
+    const dialog = $("#battleDialog");
+    if (!dialog.open) dialog.showModal();
+    dialog.scrollTop = 0;
     playBattleAnimation(r, root, target === "rush", target);
     return r;
   }
@@ -1476,18 +1538,18 @@
     return `
       <section class="battle-shell">
         <div class="battle-top"><b>URLバトル!</b><span>相棒と固有技が勝負を決める</span></div>
+        <div class="battle-toolbar">
+          <div class="battle-playback-controls"><span>演出速度</span><button type="button" class="battle-speed" data-speed="1">×1</button><button type="button" class="battle-speed" data-speed="2">×2</button><button type="button" class="battle-speed" data-speed="4">×4</button></div>
+          <button class="battle-skip" type="button">結果までスキップ</button>
+        </div>
         <div class="battle-stage">
-          ${fighterBattleHtml(r.cardA, r.fighterA.maxHp, "A")}
-          <div class="battle-center">
-            <span class="turn-chip">開始!</span>
-            <div class="battle-message">まもなくバトル開始!</div>
-            <div class="battle-playback-controls"><span>演出速度</span><button type="button" class="battle-speed" data-speed="1">×1</button><button type="button" class="battle-speed" data-speed="2">×2</button><button type="button" class="battle-speed" data-speed="4">×4</button></div>
-            <button class="battle-skip" type="button">結果までスキップ</button>
-          </div>
           ${fighterBattleHtml(r.cardB, r.fighterB.maxHp, "B")}
+          <div class="battle-center"><span class="turn-chip">開始!</span><div class="battle-message">まもなくバトル開始!</div></div>
+          ${fighterBattleHtml(r.cardA, r.fighterA.maxHp, "A")}
           <div class="battle-effect-art" aria-hidden="true"><img alt="" /></div>
           <div class="battle-fx"></div><div class="skill-flash"></div>
         </div>
+        <section class="battle-log-panel" aria-live="polite"><div class="battle-log-title">バトルログ</div><div class="battle-log-live"></div></section>
         <div class="battle-result hidden"></div>
       </section>`;
   }
@@ -1508,6 +1570,12 @@
     const effectArt = $(".battle-effect-art", shell);
     const flash = $(".skill-flash", shell);
     const skip = $(".battle-skip", shell);
+    const liveLog = $(".battle-log-live", shell);
+    const pushLog = text => {
+      if (!liveLog || !text) return;
+      const line=document.createElement("div"); line.className="log-line"; line.textContent=text;
+      liveLog.appendChild(line); liveLog.scrollTop=liveLog.scrollHeight;
+    };
     let skipNow = false;
     const speedButtons = $$(".battle-speed", shell);
     const paintSpeed = () => speedButtons.forEach(b => b.classList.toggle("active", Number(b.dataset.speed) === getBattleSpeed()));
@@ -1528,7 +1596,7 @@
         continue;
       }
       if (e.kind === "judge") {
-        msg.textContent = e.text;
+        msg.textContent = e.text; pushLog(e.text);
         showBattleFx(fx, "判定!");
         await battleDelay(520);
         continue;
@@ -1538,7 +1606,7 @@
         const fighterEl = $(`.battle-fighter[data-side="${side}"]`, shell);
         fighterEl?.classList.add(side === "A" ? "lunge-left" : "lunge-right");
         flash.classList.remove("on"); void flash.offsetWidth; flash.classList.add("on");
-        msg.textContent = e.text;
+        msg.textContent = e.text; pushLog(e.text);
         showBattleFx(fx, e.skill);
         showBattleEffect(effectArt, SKILL_EFFECTS[e.skill] || "./assets/effects/fx_support_buff.png", shell, fighterEl);
         await battleDelay(500);
@@ -1551,7 +1619,7 @@
         const dEl = $(`.battle-fighter[data-side="${dSide}"]`, shell);
         aEl?.classList.add(aSide === "A" ? "lunge-left" : "lunge-right");
         dEl?.classList.add(dSide === "A" ? "lunge-right" : "lunge-left");
-        msg.textContent = e.text;
+        msg.textContent = e.text; pushLog(e.text);
         showBattleFx(fx, "MISS!");
         showBattleEffect(effectArt, "./assets/effects/fx-wind-ai.png", shell, dEl);
         await battleDelay(430);
@@ -1569,6 +1637,7 @@
         updateBattleHp(dEl, e.hpAfter, e.maxHp);
         spawnDamage(shell, $(".fighter-monster", dEl) || dEl, `${e.critical ? "会心! " : ""}-${e.damage}`);
         msg.textContent = e.kind === "extra" ? e.text : `${e.text} / ${e.explain}`;
+        pushLog(msg.textContent);
         if (e.skillName) showBattleFx(fx, e.skillName);
         const attackerCard = e.attackerId === r.cardA.id ? r.cardA : r.cardB;
         showBattleEffect(effectArt, effectForEvent(e, attackerCard), shell, dEl);
@@ -1577,12 +1646,16 @@
       }
     }
 
+    if (skipNow && liveLog) {
+      liveLog.innerHTML = r.log.map(x => `<div class="log-line">${esc(x)}</div>`).join("");
+      liveLog.scrollTop = liveLog.scrollHeight;
+    }
     const aEl = $('.battle-fighter[data-side="A"]', shell);
     const bEl = $('.battle-fighter[data-side="B"]', shell);
     updateBattleHp(aEl, r.fighterA.hp, r.fighterA.maxHp);
     updateBattleHp(bEl, r.fighterB.hp, r.fighterB.maxHp);
     turnChip.textContent = `${r.turns}ターン決着`;
-    msg.textContent = `勝者「${displayName(r.winner)}」!`;
+    msg.textContent = `勝者「${displayName(r.winner)}」!`; pushLog(msg.textContent);
     showBattleFx(fx, "WIN!");
     await battleDelay(skipNow ? 120 : 500);
     showBattleFinal(shell, r, rush, target);
@@ -1649,7 +1722,7 @@
         <button class="secondary result-rematch">もう一戦</button>
         <button class="secondary result-next hidden">次の相手へ</button>
       </div>
-      <details class="battle-log"><summary>詳しいバトルログを見る</summary>${r.log.map(x=>`<div class="log-line">${esc(x)}</div>`).join("")}</details>`;
+      `;
     bindResultActions(resultEl, r, rush, target);
   }
 
@@ -1776,7 +1849,7 @@
       loadCanvasImage(monster?.image),
       ...["hp","atk","def","spd","tec"].map(k => loadCanvasImage(statIcon(k)))
     ]);
-    const skillImgs = await Promise.all((card.skills || []).slice(0,3).map(s => loadCanvasImage(skillIcon(s))));
+    const skillImgs = await Promise.all((card.skills || []).slice(0,2).map(s => loadCanvasImage(skillIcon(s))));
     const [,accent] = cardColors(card);
 
     // Background and solid printable frame.
@@ -1802,7 +1875,7 @@
     x.fillStyle="#17202b"; x.font="900 18px sans-serif"; x.fillText("戦闘力",77,354);
 
     // Skill chips.
-    const skills=(card.skills||[]).slice(0,3);
+    const skills=(card.skills||[]).slice(0,2);
     const skillY = 378;
     if (skills.length) {
       skills.forEach((s,i)=>{
@@ -1821,14 +1894,15 @@
     x.fillStyle="#edf8ff"; roundRect(x,694,132,426,322,24); x.fill();
     x.lineWidth=4; x.strokeStyle="#17202b"; x.stroke();
     x.fillStyle=accent; x.globalAlpha=.15; x.beginPath(); x.arc(910,265,170,0,Math.PI*2); x.fill(); x.globalAlpha=1;
-    drawImageContain(x, monsterImg, 730,145,355,230);
+    drawCanvasRadar(x, card.stats, 780, 260, 76);
+    drawImageContain(x, monsterImg, 850,145,250,230);
     if (monster) {
-      x.fillStyle="#17202b"; x.textAlign="center"; x.font="900 24px sans-serif"; fitText(x,monster.name,735,392,350);
+      x.fillStyle="#17202b"; x.textAlign="center"; x.font="900 24px sans-serif"; fitText(x,monster.name,955,392,260);
       x.fillStyle="#667085"; x.font="900 14px sans-serif";
-      x.fillText(`${monsterBadge(monster)} ・ ランク ${monster.rank} ・ ${monster.race}`,907,420);
+      x.fillText(`${monsterBadge(monster)} ・ ランク ${monster.rank} ・ ${monster.race}`,955,420);
       if (buddy) {
         x.fillStyle="#ff5e9f"; x.font="900 14px sans-serif";
-        x.fillText(`${buddy.title}　${buddy.name}+${buddy.percent}%`,907,444);
+        x.fillText(`${buddy.title}　${buddy.name}+${buddy.percent}%`,955,444);
       }
       x.textAlign="left";
     }
@@ -1846,10 +1920,18 @@
       x.fillStyle="#17202b"; x.font="900 34px sans-serif"; x.fillText(String(vals[i]),px+47,548);
     });
 
-    // Footer safe area.
-    x.fillStyle="#ff5e9f"; x.font="900 21px sans-serif"; x.fillText("#URLバトラー",72,592);
-    x.fillStyle="#17202b"; x.font="800 14px sans-serif"; fitText(x,compactUrlForImage(PUBLIC_APP_URL,80),246,591,700);
     return canvasBlob(c);
+  }
+
+  function drawCanvasRadar(ctx, stats, cx, cy, radius) {
+    const keys=["hp","atk","def","spd","tec"];
+    const point=(i,rate=1)=>{ const a=-Math.PI/2+i*Math.PI*2/5; return [cx+Math.cos(a)*radius*rate,cy+Math.sin(a)*radius*rate]; };
+    ctx.save();
+    ctx.lineWidth=2; ctx.strokeStyle="rgba(23,32,43,.30)"; ctx.fillStyle="rgba(32,140,255,.20)";
+    [.34,.67,1].forEach(rate=>{ctx.beginPath();keys.forEach((_,i)=>{const p=point(i,rate);i?ctx.lineTo(...p):ctx.moveTo(...p)});ctx.closePath();ctx.stroke();});
+    keys.forEach((_,i)=>{const p=point(i,1);ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(...p);ctx.stroke();});
+    ctx.beginPath(); keys.forEach((k,i)=>{const p=point(i,clamp(Number(stats?.[k]||0)/999,0,1));i?ctx.lineTo(...p):ctx.moveTo(...p)});ctx.closePath();ctx.fill();ctx.strokeStyle="#208cff";ctx.lineWidth=4;ctx.stroke();
+    ctx.restore();
   }
 
   async function downloadResultImage(r) {
@@ -1985,12 +2067,12 @@
     if (title) $("#scanProgressTitle").textContent = title;
     if (text) $("#scanProgressText").textContent = text;
   }
-  function showAlert(message, type = "") {
+  function showAlert(message, type = "", scroll = true) {
     const el = $("#globalAlert");
     el.textContent = message;
     el.className = `alert ${type}`.trim();
     el.classList.remove("hidden");
-    window.scrollTo({top:0,behavior:"smooth"});
+    if (scroll) window.scrollTo({top:0,behavior:"smooth"});
     clearTimeout(showAlert.timer);
     showAlert.timer = setTimeout(()=>el.classList.add("hidden"), type === "error" ? 12000 : 5000);
   }
@@ -2031,12 +2113,14 @@
       const card = await getPageSpeedCard($("#createUrl").value, $("#strategySelect").value, $("#forceScan").checked);
       renderLatest(card);
       if (card.discoveryStatus === "NEW") {
-        showAlert("新発見! 探索エナジーを1使ってカードを召喚しました。", "success");
+        showAlert("新発見! 探索エナジーを1使ってカードを召喚しました。", "success", false);
       } else if (card.discoveryStatus === "DISCOVERED") {
-        showAlert("みんなが発見済みのURLです。エナジー消費なしで召喚しました。", "success");
+        showAlert("みんなが発見済みのURLです。エナジー消費なしで召喚しました。", "success", false);
       } else {
-        showAlert("発見済みのURLです。エナジー消費なしで召喚しました。", "success");
+        showAlert("発見済みのURLです。エナジー消費なしで召喚しました。", "success", false);
       }
+      $("#createUrl").value = "";
+      requestAnimationFrame(() => $("#latestCardArea").scrollIntoView({behavior:"smooth", block:"start"}));
     } catch(e) { handleAppError(e); }
     finally { $("#scanButton").disabled = false; showProgress(false); }
   }
@@ -2049,9 +2133,26 @@
       const a = await getPageSpeedCard($("#battleUrlA").value, $("#battleStrategy").value, false);
       showAlert("2PのURLを召喚中。発見済みならエナジー0です。");
       const b = await getPageSpeedCard($("#battleUrlB").value, $("#battleStrategy").value, false);
-      showBattle(a,b,"URL_VS_URL","arena");
+      showBattle(a,b,"URL_VS_URL","dialog");
     } catch(e) { handleAppError(e); }
     finally { button.disabled = false; showProgress(false); }
+  }
+
+  function exportBackup() {
+    const payload={ format:"url-battler-backup", version:1, exportedAt:new Date().toISOString(), cards:getCards(), buddyLocks:getBuddyLocks() };
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json;charset=utf-8"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`url-battler-backup-${new Date().toISOString().slice(0,10)}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    showAlert("お気に入りカードのバックアップを保存しました。", "success", false);
+  }
+  async function importBackupFile(file) {
+    if (!file) return;
+    try {
+      const data=JSON.parse(await file.text());
+      if (data?.format !== "url-battler-backup" || !Array.isArray(data.cards)) throw new Error("URLバトラーのバックアップ形式ではありません。");
+      const cards=data.cards.slice(0,MAX_CARDS).map(c => c?.metrics && !c.metrics.isNpc ? rebalanceCard(c) : c).filter(Boolean);
+      saveJson(LS.cards,cards); saveJson(LS.buddyLocks,data.buddyLocks && typeof data.buddyLocks === "object" ? data.buddyLocks : {}); renderAll();
+      showAlert(`${cards.length}枚のカードを読み込みました。`, "success", false);
+    } catch(e) { showAlert(`バックアップを読み込めませんでした：${e.message}`, "error"); }
   }
 
   function init() {
@@ -2083,6 +2184,9 @@
       $("#cardNameDialog").close();
     };
     $("#cardNameSave").onclick = saveEditedCardName;
+    $("#backupExportButton").onclick = exportBackup;
+    $("#backupImportButton").onclick = () => $("#backupImportFile").click();
+    $("#backupImportFile").onchange = e => { importBackupFile(e.target.files?.[0]); e.target.value=""; };
     $("#cardNameInput").addEventListener("keydown", e => {
       if (e.key === "Enter") saveEditedCardName();
     });

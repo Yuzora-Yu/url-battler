@@ -47,6 +47,7 @@
       <button class="tab" data-view="rush"><span>04</span>連戦</button>
       <button class="tab" data-view="tower"><span>05</span>URL魔塔</button>
       <button class="tab" data-view="history"><span>06</span>戦歴</button>
+      <button class="tab" data-view="settings"><span>07</span>設定</button>
     </nav>
 
     <main>
@@ -218,6 +219,29 @@
           <div id="historyList" class="history-list"></div>
         </section>
       </section>
+      <section id="view-settings" class="view">
+        <section class="panel settings-panel">
+          <div class="panel-head">
+            <div><p class="kicker">端末データを守ろう</p><h2>設定・バックアップ</h2></div>
+            <span class="pill">LOCAL SAVE</span>
+          </div>
+          <div class="settings-cards">
+            <div class="settings-card">
+              <h3>お気に入りカードのバックアップ</h3>
+              <p>お気に入り5枚と「相棒固定」の情報をJSONファイルへ保存・復元できます。端末変更やブラウザデータ削除の前に出力しておくのがおすすめです。</p>
+              <div class="card-actions">
+                <button id="backupExportButton" class="primary">バックアップを出力</button>
+                <button id="backupImportButton" class="secondary">バックアップを読込</button>
+                <input id="backupImportFile" type="file" accept="application/json,.json" class="hidden" />
+              </div>
+            </div>
+            <div class="settings-card">
+              <h3>相棒モンスター固定</h3>
+              <p>「マイカード」の各カードにある「相棒を固定」で、能力再計算や更新後もこの端末では同じ相棒を使えます。固定情報もバックアップに含まれます。</p>
+            </div>
+          </div>
+        </section>
+      </section>
     </main>
 
     <dialog id="battleDialog" class="battle-dialog">
@@ -242,7 +266,16 @@
     </dialog>
 
     <footer>
-      <a href="https://yu-zora.com/">YU-ZORA PORTAL</a>
+      <div class="footer-links">
+        <a href="https://yu-zora.com/">PORTAL</a>
+        <a href="https://yu-zora.com/games/">GAMES</a>
+        <a href="https://yu-zora.com/tools/">TOOLS</a>
+        <a href="https://yu-zora.com/about/">ABOUT</a>
+        <a href="https://yu-zora.com/privacy/">PRIVACY</a>
+        <a href="https://yu-zora.com/terms/">TERMS</a>
+        <a href="https://yu-zora.com/disclaimer/">DISCLAIMER</a>
+        <a href="https://yu-zora.com/contact/">CONTACT</a>
+      </div>
       <p>公開ページから分かる特徴をゲーム用の能力に変換しています。「守備」はゲーム上の能力で、サイトの安全性を保証するものではありません。能力はページの状態によって変わることがあります。</p>
     </footer>
   </div>

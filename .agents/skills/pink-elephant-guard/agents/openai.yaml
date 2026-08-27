@@ -1,0 +1,6 @@
+interface:
+  display_name: "ピンクの象ガード"
+  short_description: "却下・削除した要素が完成物の話題として再登場するのを防ぐ"
+  default_prompt: "$pink-elephant-guard を使い、却下・削除した要素を完成物へ再登場させずに修正してください。"
+policy:
+  allow_implicit_invocation: true
