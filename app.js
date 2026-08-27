@@ -1515,21 +1515,21 @@
     return `
       <div class="battle-fighter ${side === "A" ? "left" : "right"}" data-side="${side}">
         <div class="fighter-head">
-          <div><small>${side === "A" ? "1P" : "2P"} / ${esc(classLabel(card))}</small><strong>${esc(displayName(card))}</strong></div>
+          <div class="fighter-title"><small>${side === "A" ? "1P" : "2P"} / ${esc(classLabel(card))}</small><strong title="${esc(card.url || displayName(card))}">${esc(displayName(card))}</strong></div>
           <span class="fighter-sigil">${esc(classSigil(card))}</span>
         </div>
-        ${monster ? `
-          <div class="fighter-monster">
-            ${monsterSpriteHtml(monster, "battle-monster-sprite")}
-            <div><b>${esc(monster.name)}</b><span>ランク ${fmt(monster.rank)} ・ ${esc(monster.race)}<br>${esc(buddyText(card))}</span></div>
-          </div>` : ""}
+        <div class="fighter-body">
+          <div class="fighter-monster${monster ? "" : " no-monster"}">
+            ${monster ? monsterSpriteHtml(monster, "battle-monster-sprite") : `<span class="fighter-no-monster">NO MONSTER</span>`}
+          </div>
+          <div class="fighter-stat-zone">
+            <div class="fighter-mini-stats"><span>耐久 ${card.stats.hp}</span><span>火力 ${card.stats.atk}</span><span>守備 ${card.stats.def}</span><span>速さ ${card.stats.spd}</span><span>技術 ${card.stats.tec}</span></div>
+            <div class="fighter-radar">${radarSvg(card.stats,true)}</div>
+          </div>
+        </div>
         <div class="hp-line">
           <div class="hp-label"><span>HP</span><b class="hp-text">${fmt(hp)} / ${fmt(hp)}</b></div>
           <div class="hp-track"><div class="hp-fill"></div></div>
-        </div>
-        <div class="fighter-stat-zone">
-          <div class="fighter-mini-stats"><span>耐久 ${card.stats.hp}</span><span>火力 ${card.stats.atk}</span><span>守備 ${card.stats.def}</span><span>速さ ${card.stats.spd}</span><span>技術 ${card.stats.tec}</span></div>
-          <div class="fighter-radar">${radarSvg(card.stats,true)}</div>
         </div>
       </div>`;
   }
@@ -1890,19 +1890,21 @@
       x.fillStyle="#667085"; x.font="800 14px sans-serif"; x.fillText("固有技：ノーマル",72,402);
     }
 
-    // Monster showcase.
-    x.fillStyle="#edf8ff"; roundRect(x,694,132,426,322,24); x.fill();
+    // Monster showcase. Keep the art panel focused on the buddy itself;
+    // the five-stat radar belongs to the card stats, not inside the monster art.
+    const monsterPanelX=694, monsterPanelY=132, monsterPanelW=426, monsterPanelH=322;
+    const monsterCenterX=monsterPanelX + monsterPanelW / 2;
+    x.fillStyle="#edf8ff"; roundRect(x,monsterPanelX,monsterPanelY,monsterPanelW,monsterPanelH,24); x.fill();
     x.lineWidth=4; x.strokeStyle="#17202b"; x.stroke();
-    x.fillStyle=accent; x.globalAlpha=.15; x.beginPath(); x.arc(910,265,170,0,Math.PI*2); x.fill(); x.globalAlpha=1;
-    drawCanvasRadar(x, card.stats, 780, 260, 76);
-    drawImageContain(x, monsterImg, 850,145,250,230);
+    x.fillStyle=accent; x.globalAlpha=.15; x.beginPath(); x.arc(monsterCenterX,263,154,0,Math.PI*2); x.fill(); x.globalAlpha=1;
+    drawImageContain(x, monsterImg, monsterCenterX-132,145,264,232);
     if (monster) {
-      x.fillStyle="#17202b"; x.textAlign="center"; x.font="900 24px sans-serif"; fitText(x,monster.name,955,392,260);
+      x.fillStyle="#17202b"; x.textAlign="center"; x.font="900 24px sans-serif"; fitText(x,monster.name,monsterCenterX,394,350);
       x.fillStyle="#667085"; x.font="900 14px sans-serif";
-      x.fillText(`${monsterBadge(monster)} ・ ランク ${monster.rank} ・ ${monster.race}`,955,420);
+      x.fillText(`${monsterBadge(monster)} ・ ランク ${monster.rank} ・ ${monster.race}`,monsterCenterX,422);
       if (buddy) {
         x.fillStyle="#ff5e9f"; x.font="900 14px sans-serif";
-        x.fillText(`${buddy.title}　${buddy.name}+${buddy.percent}%`,955,444);
+        x.fillText(`${buddy.title}　${buddy.name}+${buddy.percent}%`,monsterCenterX,446);
       }
       x.textAlign="left";
     }
@@ -1923,16 +1925,6 @@
     return canvasBlob(c);
   }
 
-  function drawCanvasRadar(ctx, stats, cx, cy, radius) {
-    const keys=["hp","atk","def","spd","tec"];
-    const point=(i,rate=1)=>{ const a=-Math.PI/2+i*Math.PI*2/5; return [cx+Math.cos(a)*radius*rate,cy+Math.sin(a)*radius*rate]; };
-    ctx.save();
-    ctx.lineWidth=2; ctx.strokeStyle="rgba(23,32,43,.30)"; ctx.fillStyle="rgba(32,140,255,.20)";
-    [.34,.67,1].forEach(rate=>{ctx.beginPath();keys.forEach((_,i)=>{const p=point(i,rate);i?ctx.lineTo(...p):ctx.moveTo(...p)});ctx.closePath();ctx.stroke();});
-    keys.forEach((_,i)=>{const p=point(i,1);ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(...p);ctx.stroke();});
-    ctx.beginPath(); keys.forEach((k,i)=>{const p=point(i,clamp(Number(stats?.[k]||0)/999,0,1));i?ctx.lineTo(...p):ctx.moveTo(...p)});ctx.closePath();ctx.fill();ctx.strokeStyle="#208cff";ctx.lineWidth=4;ctx.stroke();
-    ctx.restore();
-  }
 
   async function downloadResultImage(r) {
     const blob = await makeResultImage(r);

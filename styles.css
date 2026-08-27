@@ -454,3 +454,154 @@ footer{margin-top:16px;padding:20px 4px 0;display:flex;justify-content:space-bet
   .battle-result{padding:10px}.winner-strip h3{font-size:20px}.winner-badge{width:62px;height:62px}.reason-grid{margin-top:8px}.result-actions{margin-top:8px}
   .footer-links{gap:8px 12px}
 }
+
+/* v1.0: battle-card fit / clearer information hierarchy */
+.battle-stage{
+  min-height:520px;
+  height:auto;
+  grid-template-rows:minmax(235px,1fr) minmax(235px,1fr);
+  overflow:visible;
+}
+.battle-stage .battle-fighter.right{justify-self:end}
+.battle-stage .battle-fighter.left{justify-self:start}
+.battle-fighter{
+  width:min(100%,430px);
+  max-width:430px;
+  padding:8px 9px;
+}
+.fighter-head{align-items:center;gap:7px}
+.fighter-title{min-width:0;flex:1}
+.battle-fighter .fighter-head strong{
+  max-width:none;
+  font-size:clamp(12px,1.55vw,17px);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.fighter-sigil{
+  flex:0 0 auto;
+  width:44px;
+  height:44px;
+  border-width:2px;
+  font-size:19px;
+  box-shadow:2px 2px 0 var(--ink);
+}
+.fighter-body{
+  display:grid;
+  grid-template-columns:minmax(112px,.9fr) minmax(150px,1.1fr);
+  gap:8px;
+  align-items:stretch;
+  margin-top:6px;
+}
+.battle-fighter .fighter-monster{
+  min-height:0;
+  height:136px;
+  margin:0;
+  border-width:2px;
+}
+.fighter-monster .monster-sprite{
+  left:6%;
+  right:6%;
+  top:5%;
+  bottom:5%;
+}
+.fighter-monster::after{bottom:12px;width:72%;height:22px}
+.fighter-no-monster{
+  font-size:8px;
+  font-weight:1000;
+  color:var(--muted);
+  letter-spacing:.08em;
+}
+.battle-fighter .fighter-stat-zone{
+  min-width:0;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 76px;
+  gap:5px;
+  align-items:center;
+  margin:0;
+}
+.battle-fighter .fighter-mini-stats{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:4px;
+  margin:0;
+}
+.battle-fighter .fighter-mini-stats span{
+  padding:5px 3px;
+  font-size:7px;
+  line-height:1.15;
+  white-space:nowrap;
+}
+.battle-fighter .fighter-mini-stats span:last-child{grid-column:1/-1}
+.battle-fighter .fighter-radar{
+  width:76px;
+  height:76px;
+}
+.battle-fighter .hp-line{margin:7px 1px 0}
+.battle-fighter .hp-track{height:13px;margin-top:3px}
+
+@media(max-width:900px){
+  .battle-stage{
+    min-height:500px;
+    grid-template-columns:minmax(210px,1fr) 76px minmax(210px,1fr);
+    grid-template-rows:minmax(225px,1fr) minmax(225px,1fr);
+    gap:8px 10px;
+    padding:10px;
+  }
+  .battle-fighter{max-width:390px}
+  .fighter-body{grid-template-columns:minmax(104px,.88fr) minmax(142px,1.12fr);gap:6px}
+  .battle-fighter .fighter-monster{height:126px}
+  .battle-fighter .fighter-stat-zone{grid-template-columns:minmax(0,1fr) 68px;gap:4px}
+  .battle-fighter .fighter-radar{width:68px;height:68px}
+  .battle-fighter .fighter-mini-stats span{font-size:6.5px;padding:4px 2px}
+}
+
+@media(max-width:650px){
+  .battle-stage{
+    min-height:0;
+    height:auto;
+    max-height:none;
+    grid-template-columns:minmax(0,1fr);
+    grid-template-rows:auto auto auto;
+    gap:7px;
+    padding:7px;
+    overflow:visible;
+  }
+  .battle-stage .battle-fighter.right{
+    grid-column:1;
+    grid-row:1;
+    width:100%;
+    max-width:none;
+    justify-self:stretch;
+  }
+  .battle-stage .battle-center{
+    grid-column:1;
+    grid-row:2;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    pointer-events:none;
+  }
+  .battle-stage .battle-fighter.left{
+    grid-column:1;
+    grid-row:3;
+    width:100%;
+    max-width:none;
+    justify-self:stretch;
+  }
+  .battle-center .battle-message{margin:0;min-height:0;max-width:210px;padding:5px 8px}
+  .battle-fighter{padding:5px 6px}
+  .fighter-sigil{width:30px;height:30px;font-size:11px;border-width:2px;box-shadow:1px 1px 0 var(--ink)}
+  .battle-fighter .fighter-head small{font-size:6px}
+  .battle-fighter .fighter-head strong{font-size:10px;max-width:none}
+  .fighter-body{grid-template-columns:minmax(96px,.8fr) minmax(150px,1.2fr);gap:5px;margin-top:4px}
+  .battle-fighter .fighter-monster{height:98px;min-height:0;max-height:none;margin:0}
+  .fighter-monster .monster-sprite{left:4%;right:4%;top:3%;bottom:3%}
+  .battle-fighter .fighter-stat-zone{grid-template-columns:minmax(0,1fr) 52px;gap:3px}
+  .battle-fighter .fighter-radar{width:52px;height:52px}
+  .battle-fighter .fighter-mini-stats{gap:2px}
+  .battle-fighter .fighter-mini-stats span{font-size:5.8px;padding:2px 1px}
+  .battle-fighter .hp-line{margin-top:4px}
+  .battle-fighter .hp-label{font-size:6px}
+  .battle-fighter .hp-track{height:8px;margin-top:2px}
+}
