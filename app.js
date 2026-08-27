@@ -10,6 +10,7 @@
   const MAX_HISTORY = 100;
   const BALANCE_VERSION = 8;
   let battlePlaybackId = 0;
+  const rushAuto = { active:false, cardId:null, timer:null };
 
   const LS = {
     cards: "urlbattler.cards.v2",
@@ -91,6 +92,40 @@
   ];
 
   const NPCS = [...REAL_RIVALS, ...FILLER_NPCS];
+
+  const TOWER_PROFILE_TEMPLATES = {
+    search:{ stats:[300,260,760,930,560], skills:["神速","鉄壁"], className:"CLOUD" },
+    media:{ stats:[780,820,620,390,760], skills:["画像弾幕","魔術過積載"], className:"MEDIA" },
+    knowledge:{ stats:[470,390,760,720,610], skills:["古代HTML","鉄壁"], className:"ARCHIVE" },
+    social:{ stats:[650,590,650,570,800], skills:["第三者召喚","DOM迷宮"], className:"APP" },
+    dev:{ stats:[560,470,800,650,880], skills:["魔術過積載","鉄壁"], className:"APP" },
+    cloud:{ stats:[590,490,900,760,820], skills:["三重結界","鉄壁"], className:"GUARD" },
+    ai:{ stats:[630,610,790,590,930], skills:["魔術過積載","第三者召喚"], className:"APP" },
+    design:{ stats:[650,720,700,590,700], skills:["画像弾幕","CSS甲冑"], className:"DESIGN" },
+    productivity:{ stats:[600,500,760,650,830], skills:["第三者召喚","鉄壁"], className:"APP" },
+    storage:{ stats:[700,420,860,650,720], skills:["重装要塞","三重結界"], className:"GUARD" },
+    commerce:{ stats:[840,760,690,350,820], skills:["巨大生命","第三者召喚"], className:"TITAN" },
+    portal:{ stats:[760,650,700,450,760], skills:["DOM迷宮","第三者召喚"], className:"PORTAL" },
+    news:{ stats:[720,650,730,520,690], skills:["DOM迷宮","画像弾幕"], className:"ARCHIVE" },
+    travel:{ stats:[730,640,680,520,770], skills:["第三者召喚","画像弾幕"], className:"PORTAL" },
+    map:{ stats:[720,610,750,560,850], skills:["DOM迷宮","魔術過積載"], className:"APP" },
+    finance:{ stats:[560,480,930,720,820], skills:["三重結界","鉄壁"], className:"GUARD" },
+    publishing:{ stats:[610,540,690,620,720], skills:["DOM迷宮","古代HTML"], className:"ARCHIVE" }
+  };
+
+  function towerNpcFromDef(def, index) {
+    const profile = TOWER_PROFILE_TEMPLATES[def?.profile] || TOWER_PROFILE_TEMPLATES.productivity;
+    const rawSeed = parseInt(hashString(`${def?.url || "tower"}|${index}`), 36) || (index + 1) * 7919;
+    const stats = profile.stats.map((v, i) => {
+      const jitter = (((rawSeed >>> ((i * 5) % 24)) & 31) - 15) * 4;
+      return clamp(v + jitter, 70, 960);
+    });
+    return npc(def.name, def.url, stats, profile.skills, profile.className, { towerProfile:def.profile || "productivity" });
+  }
+
+  const TOWER_RIVALS = (Array.isArray(window.URLB_TOWER_RIVALS) ? window.URLB_TOWER_RIVALS : [])
+    .filter(v => v && v.name && v.url)
+    .map(towerNpcFromDef);
 
   function npc(name, url, s, skills, className, meta = {}) {
     let domain = name, path = "/";
@@ -1210,9 +1245,10 @@
   }
   function saveTowerState(s) { saveJson(LS.tower, { floor:Math.max(1,s.floor|0), best:Math.max(0,s.best|0) }); }
   function towerBaseForFloor(floor) {
-    if (floor <= 2) return FILLER_NPCS[(floor-1) % FILLER_NPCS.length];
-    const index = (floor - 3) % REAL_RIVALS.length;
-    return REAL_RIVALS[index];
+    const pool = TOWER_RIVALS.length ? TOWER_RIVALS : REAL_RIVALS;
+    // 37は80件と互いに素。固定リストを一巡するまで同じ相手が出ない。
+    const index = ((Math.max(1, Number(floor || 1)) - 1) * 37 + 11) % pool.length;
+    return pool[index];
   }
   function towerEnemyForFloor(floor) {
     const f = Math.max(1, Number(floor||1));
@@ -1246,9 +1282,9 @@
     $("#towerStartButton").disabled=!cards.length;
   }
 
-  function doTowerBattle(card) {
+  function doTowerBattle(card, floorOverride = null) {
     const state=getTowerState();
-    const foughtFloor=state.floor;
+    const foughtFloor=Math.max(1, Number(floorOverride || state.floor));
     const enemy=towerEnemyForFloor(foughtFloor);
     const r=showBattle(card, enemy, `TOWER_${foughtFloor}`, "tower");
     if (r.winnerId===card.id) {
@@ -1515,7 +1551,7 @@
     return `
       <div class="battle-fighter ${side === "A" ? "left" : "right"}" data-side="${side}">
         <div class="fighter-head">
-          <div class="fighter-title"><small>${side === "A" ? "1P" : "2P"} / ${esc(classLabel(card))}</small><strong title="${esc(card.url || displayName(card))}">${esc(displayName(card))}</strong></div>
+          <div class="fighter-title"><small title="${esc(card.url || card.domain)}">${esc(card.url || card.domain)}</small><strong title="${esc(displayName(card))}">${esc(displayName(card))}</strong></div>
           <span class="fighter-sigil">${esc(classSigil(card))}</span>
         </div>
         <div class="fighter-body">
@@ -1655,7 +1691,10 @@
     updateBattleHp(aEl, r.fighterA.hp, r.fighterA.maxHp);
     updateBattleHp(bEl, r.fighterB.hp, r.fighterB.maxHp);
     turnChip.textContent = `${r.turns}ターン決着`;
-    msg.textContent = `勝者「${displayName(r.winner)}」!`; pushLog(msg.textContent);
+    const winnerLog = `勝者「${displayName(r.winner)}」 ${r.winner.url || r.winner.domain}`;
+    msg.classList.add("winner-message");
+    msg.innerHTML = `<span>勝者</span><strong>${esc(displayName(r.winner))}</strong><small>${esc(r.winner.url || r.winner.domain)}</small>`;
+    pushLog(winnerLog);
     showBattleFx(fx, "WIN!");
     await battleDelay(skipNow ? 120 : 500);
     showBattleFinal(shell, r, rush, target);
@@ -1706,45 +1745,108 @@
 
   function showBattleFinal(shell, r, rush, target) {
     const resultEl = $(".battle-result", shell);
+    const winnerMonster = monsterForCard(r.winner);
+    const loserSide = sideForCard(r, r.loser.id);
+    const winnerSide = sideForCard(r, r.winner.id);
+    $(`.battle-fighter[data-side="${loserSide}"]`, shell)?.classList.add("defeated");
+    $(`.battle-fighter[data-side="${winnerSide}"]`, shell)?.classList.add("victorious");
     resultEl.classList.remove("hidden");
     resultEl.innerHTML = `
       <div class="winner-strip">
-        <div><small>勝者 / ${r.turns}ターン</small><h3>${esc(displayName(r.winner))}</h3>
-          ${monsterForCard(r.winner) ? `<p class="winner-monster-name">相棒 ${esc(monsterForCard(r.winner).name)} / ランク ${fmt(monsterForCard(r.winner).rank)}</p>` : ""}
+        <div class="winner-copy">
+          <small>勝者</small>
+          <h3>${esc(displayName(r.winner))}</h3>
+          <p class="winner-url">${esc(r.winner.url || r.winner.domain)}</p>
+          <p class="winner-meta">${r.turns}ターン決着${winnerMonster ? ` ・ 相棒 ${esc(winnerMonster.name)}` : ""}</p>
         </div>
-        ${monsterForCard(r.winner) ? `<div class="winner-monster">${monsterSpriteHtml(monsterForCard(r.winner), "winner-monster-sprite")}</div>` : ""}
+        ${winnerMonster ? `<div class="winner-monster">${monsterSpriteHtml(winnerMonster, "winner-monster-sprite")}</div>` : ""}
         <div class="winner-badge">勝<br>利!</div>
       </div>
       <div class="reason-grid">${r.reasons.map(x=>`<div class="reason-card"><b>${esc(x.title)}</b><span>${esc(x.detail)}</span></div>`).join("")}</div>
       <div class="result-actions">
-        <button class="primary result-share">SNSで結果共有</button>
+        <button class="primary result-next hidden">次へ</button>
+        <button class="secondary result-rematch">再戦</button>
         <button class="secondary result-download">結果画像を保存</button>
-        <button class="secondary result-rematch">もう一戦</button>
-        <button class="secondary result-next hidden">次の相手へ</button>
+        <button class="secondary result-share">SNSで結果共有</button>
       </div>
       `;
     bindResultActions(resultEl, r, rush, target);
   }
 
+  function clearRushAutoTimer() {
+    if (rushAuto.timer) clearTimeout(rushAuto.timer);
+    rushAuto.timer = null;
+  }
+
+  function stopRushAuto() {
+    clearRushAutoTimer();
+    rushAuto.active = false;
+    rushAuto.cardId = null;
+  }
+
+  function startRushAuto(card) {
+    if (!card) return;
+    clearRushAutoTimer();
+    rushAuto.active = true;
+    rushAuto.cardId = card.id;
+    doRushBattle(card, true);
+  }
+
+  function scheduleRushNext(root, card) {
+    clearRushAutoTimer();
+    const next = $(".result-next", root);
+    next.classList.remove("hidden");
+    next.textContent = "オート停止";
+    next.onclick = () => {
+      stopRushAuto();
+      next.textContent = "オート停止済み";
+      next.disabled = true;
+    };
+    rushAuto.timer = setTimeout(() => {
+      rushAuto.timer = null;
+      if (!rushAuto.active || rushAuto.cardId !== card.id || !$("#battleDialog")?.open) return;
+      doRushBattle(card, true);
+    }, 1800);
+  }
+
   function bindResultActions(root, r, rush, target) {
     $(".result-download", root).onclick = () => downloadResultImage(r);
     $(".result-share", root).onclick = () => shareResult(r);
-    $(".result-rematch", root).onclick = () => {
-      if (rush) doRushBattle(r.cardA);
-      else showBattle(r.cardA, r.cardB, "REMATCH", target);
-    };
+    const rematch = $(".result-rematch", root);
     const next = $(".result-next", root);
-    if (rush) { next.classList.remove("hidden"); next.textContent="次の相手へ"; next.onclick = () => doRushBattle(r.cardA); }
+
+    if (rush) {
+      if (r.winnerId === r.cardA.id && rushAuto.active) {
+        rematch.textContent = "この相手と再戦";
+        rematch.onclick = () => {
+          clearRushAutoTimer();
+          showBattle(r.cardA, r.cardB, "RUSH_REMATCH", "rush");
+        };
+        scheduleRushNext(root, r.cardA);
+      } else {
+        stopRushAuto();
+        rematch.textContent = "オート連戦を再開";
+        rematch.onclick = () => startRushAuto(r.cardA);
+      }
+      return;
+    }
+
+    rematch.onclick = () => showBattle(r.cardA, r.cardB, "REMATCH", target);
     if (target === "tower") {
       const state=getTowerState();
       next.classList.remove("hidden");
-      next.textContent = r.winnerId===r.cardA.id ? `次の階 ${state.floor}Fへ` : "1Fから再挑戦";
+      next.textContent = r.winnerId===r.cardA.id ? `次の階へ（${state.floor}F）` : "1Fから再挑戦";
       next.onclick = () => doTowerBattle(r.cardA);
-      $(".result-rematch", root).textContent="この相手と再戦";
+      rematch.textContent="再戦";
+      rematch.onclick = () => doTowerBattle(r.cardA, r.cardB?.towerFloor || 1);
     }
   }
 
-  function doRushBattle(card) {
+  function doRushBattle(card, auto = false) {
+    if (auto) {
+      rushAuto.active = true;
+      rushAuto.cardId = card.id;
+    }
     const state = loadJson(LS.rush, {streak:0});
     const r = showBattle(card, randomNpc(card, state.streak || 0), "RUSH", "rush");
     if (r.winnerId === card.id) state.streak = (state.streak || 0) + 1;
@@ -1937,7 +2039,7 @@
 
   async function shareResult(r) {
     const wm = monsterForCard(r.winner);
-    const text = `⚔ URLバトラー!「${displayName(r.winner)}」勝利! ${r.turns}ターン決着 / 戦闘力${r.winner.bp}${wm ? ` / 相棒 ${wm.name}` : ""} #URLバトラー ${PUBLIC_APP_URL}`;
+    const text = `⚔ URLバトラー!「${r.winner.url || r.winner.domain}」勝利! ${r.turns}ターン決着 / 戦闘力${r.winner.bp}${wm ? ` / 相棒 ${wm.name}` : ""} #URLバトラー ${PUBLIC_APP_URL}`;
     const blob = await makeResultImage(r);
     const file = new File([blob], `url-battler-${r.id}.png`, {type:"image/png"});
     try {
@@ -1971,7 +2073,8 @@
     x.fillText(`${r.turns}ターン決着`,1126,84); x.textAlign="left";
 
     x.fillStyle="#ff5e9f"; x.font="900 72px sans-serif"; x.fillText("WIN!",70,184);
-    x.fillStyle="#17202b"; x.font="900 46px sans-serif"; fitText(x,displayName(r.winner),260,180,520);
+    x.fillStyle="#667085"; x.font="900 15px sans-serif"; fitText(x,displayName(r.winner),260,142,450,12);
+    x.fillStyle="#17202b"; x.font="900 31px sans-serif"; fitText(x,compactUrlForImage(r.winner.url || r.winner.domain,70),260,180,450,15);
     x.fillStyle="#667085"; x.font="900 17px sans-serif"; x.fillText(`戦闘力 ${r.winner.bp} ・ ${cardGrade(r.winner)}級`,264,214);
 
     // Winner reason panel.
@@ -1982,15 +2085,18 @@
     x.fillStyle="#17202b"; x.font="900 27px sans-serif"; fitText(x,reason?.title || "総合力",90,319,575);
     x.fillStyle="#667085"; x.font="800 15px sans-serif"; fitText(x,reason?.detail || "能力と固有技の組み合わせ",90,350,575);
 
-    // Winner monster.
-    x.fillStyle="#edf8ff"; roundRect(x,748,126,372,300,22); x.fill();
+    // Winner monster. Text stays centered inside the monster panel.
+    const resultMonsterX=748, resultMonsterY=126, resultMonsterW=372, resultMonsterH=300;
+    const resultMonsterCx=resultMonsterX + resultMonsterW / 2;
+    x.fillStyle="#edf8ff"; roundRect(x,resultMonsterX,resultMonsterY,resultMonsterW,resultMonsterH,22); x.fill();
     x.lineWidth=4; x.strokeStyle="#17202b"; x.stroke();
-    drawImageContain(x,monsterImg,775,138,320,220);
+    drawImageContain(x,monsterImg,resultMonsterX+32,resultMonsterY+12,resultMonsterW-64,190);
     if (monster) {
-      x.fillStyle="#17202b"; x.textAlign="center"; x.font="900 23px sans-serif"; fitText(x,monster.name,778,378,315);
-      x.fillStyle="#667085"; x.font="900 14px sans-serif"; x.fillText(`ランク ${monster.rank} ・ ${monster.race}`,934,404);
+      x.textAlign="center";
+      x.fillStyle="#17202b"; x.font="900 22px sans-serif"; fitText(x,monster.name,resultMonsterCx,357,resultMonsterW-44,12);
+      x.fillStyle="#667085"; x.font="900 13px sans-serif"; fitText(x,`ランク ${monster.rank} ・ ${monster.race}`,resultMonsterCx,386,resultMonsterW-44,10);
       if (buddy) {
-        x.fillStyle="#ff5e9f"; x.font="900 13px sans-serif"; x.fillText(`${buddy.name}+${buddy.percent}%`,934,426);
+        x.fillStyle="#ff5e9f"; x.font="900 12px sans-serif"; fitText(x,`${buddy.title} ・ ${buddy.name}+${buddy.percent}%`,resultMonsterCx,411,resultMonsterW-44,9);
       }
       x.textAlign="left";
     }
@@ -2007,18 +2113,20 @@
       x.fillStyle="#17202b"; x.font="900 36px sans-serif"; x.fillText(String(vals[i]),px+14,526);
     });
 
-    x.fillStyle="#17202b"; x.font="800 15px sans-serif"; fitText(x,`${displayName(r.cardA)}  VS  ${displayName(r.cardB)}`,70,584,780);
+    x.fillStyle="#17202b"; x.font="800 15px sans-serif"; fitText(x,`${compactUrlForImage(r.cardA.url || r.cardA.domain,58)}  VS  ${compactUrlForImage(r.cardB.url || r.cardB.domain,58)}`,70,584,900,11);
     x.fillStyle="#ff5e9f"; x.textAlign="right"; x.font="900 21px sans-serif"; x.fillText("#URLバトラー",1125,584); x.textAlign="left";
     return canvasBlob(c);
   }
 
-  function fitText(ctx, text, x, y, maxWidth) {
-    let size = parseInt(ctx.font, 10) || 54;
-    while (ctx.measureText(text).width > maxWidth && size > 26) {
-      size -= 2;
-      ctx.font = `900 ${size}px sans-serif`;
+  function fitText(ctx, text, x, y, maxWidth, minSize = 12) {
+    const font = String(ctx.font || "");
+    let size = Number(/([0-9.]+)px/.exec(font)?.[1]) || 54;
+    const weight = /^(\d{3}|bold|normal)/.exec(font)?.[1] || "900";
+    while (ctx.measureText(String(text)).width > maxWidth && size > minSize) {
+      size -= 1;
+      ctx.font = `${weight} ${size}px sans-serif`;
     }
-    ctx.fillText(text, x, y);
+    ctx.fillText(String(text), x, y);
   }
 
   function roundRect(ctx,x,y,w,h,r) {
@@ -2035,12 +2143,17 @@
       el.innerHTML = `<p class="muted">まだ戦歴はありません。</p>`;
       return;
     }
-    el.innerHTML = h.map(v => `
+    el.innerHTML = h.map(v => {
+      const aUrl = v.cardA?.url || v.cardA?.domain || "—";
+      const bUrl = v.cardB?.url || v.cardB?.domain || "—";
+      const winnerUrl = v.winnerId === v.cardA?.id ? aUrl : v.winnerId === v.cardB?.id ? bUrl : (v.winnerDomain || "—");
+      return `
       <div class="history-item">
         <time>${new Date(v.playedAt).toLocaleString("ja-JP")}</time>
-        <strong>${esc(v.cardA.domain)} VS ${esc(v.cardB.domain)}</strong>
-        <span>${esc(v.winnerDomain)} WIN / ${v.turns}T</span>
-      </div>`).join("");
+        <div class="history-match"><b>${esc(aUrl)}</b><em>VS</em><b>${esc(bUrl)}</b></div>
+        <div class="history-outcome"><strong>${esc(winnerUrl)}</strong><span>WIN / ${v.turns}T</span></div>
+      </div>`;
+    }).join("");
   }
 
   function renderAll() {
@@ -2077,7 +2190,6 @@
   function switchView(name) {
     $$(".tab").forEach(b => b.classList.toggle("active", b.dataset.view === name));
     $$(".view").forEach(v => v.classList.toggle("active", v.id === `view-${name}`));
-    window.scrollTo({top:0, behavior:"smooth"});
   }
 
   let pendingExternalUrl = null;
@@ -2154,7 +2266,7 @@
     $("#battleUrlButton").onclick = battleUrls;
     $("#rushStartButton").onclick = () => {
       const card = getCards().find(c => c.id === $("#rushCardSelect").value);
-      if (card) doRushBattle(card);
+      if (card) startRushAuto(card);
     };
     $("#towerStartButton").onclick = () => {
       const card = getCards().find(c => c.id === $("#towerCardSelect").value);
@@ -2168,7 +2280,7 @@
     $("#clearHistoryButton").onclick = () => {
       if (confirm("対戦記録をすべて削除しますか？")) { saveJson(LS.history, []); renderHistory(); }
     };
-    $("#battleDialogClose").onclick = () => { battlePlaybackId++; $("#battleDialog").close(); };
+    $("#battleDialogClose").onclick = () => { battlePlaybackId++; stopRushAuto(); $("#battleDialog").close(); };
     $("#externalCancel").onclick = () => { pendingExternalUrl = null; $("#externalDialog").close(); };
     $("#externalOpen").onclick = actuallyOpenExternal;
     $("#cardNameCancel").onclick = () => {
