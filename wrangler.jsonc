@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "url-battler-scan",
-  "main": "worker/worker.js",
+  "main": "worker/publication.js",
   "compatibility_date": "2026-08-26",
   "workers_dev": true,
   "routes": [
@@ -18,9 +18,7 @@
     "directory": "./dist",
     "html_handling": "auto-trailing-slash",
     "binding": "ASSETS",
-    "run_worker_first": [
-      "/games/url-battler/api/*"
-    ]
+    "run_worker_first": true
   },
   "kv_namespaces": [
     {
