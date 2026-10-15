@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "url-battler-scan",
+  "name": "url-battler",
   "main": "worker/publication.js",
   "compatibility_date": "2026-08-26",
   "workers_dev": true,

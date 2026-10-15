@@ -51,7 +51,7 @@ PageSpeed APIキーは `PAGESPEED_API_KEY` SecretとしてCloudflareに保持し
 
 ## 既存環境からの移行
 
-既存Worker名 `url-battler-scan` と既存KVをそのまま使う構成です。
+本番URLの担当Workerは `url-battler` です。既存のKVとDurable Objectを維持します。旧API用の `url-battler-scan` は別Workerです。
 
 設定の正本はルートの `wrangler.jsonc` です。
 
@@ -97,7 +97,7 @@ npx.cmd wrangler deploy
 
 `wrangler.jsonc` に以下を設定済みです。
 
-- Worker: `url-battler-scan`
+- Worker: `url-battler`
 - Routes: `yu-zora.com/games/url-battler` / `yu-zora.com/games/url-battler/*`
 - Zone: `yu-zora.com`
 - Static Assets: `./dist`
